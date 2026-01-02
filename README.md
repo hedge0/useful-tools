@@ -46,6 +46,7 @@ A curated list of useful open-source GitHub projects organized by category
 ## Infrastructure as Code
 
 - [Terraform](https://github.com/hashicorp/terraform) - Infrastructure provisioning tool that enables declarative configuration of cloud and on-premises resources across multiple providers.
+- [Ansible](https://github.com/ansible/ansible) - Agentless automation platform for configuration management, application deployment, and task automation using simple YAML playbooks.
 
 ## CI/CD & GitOps
 
@@ -65,6 +66,7 @@ A curated list of useful open-source GitHub projects organized by category
 - [ClamAV](https://github.com/Cisco-Talos/clamav) - Open-source antivirus engine for detecting trojans, viruses, malware, and other malicious threats.
 - [cert-manager](https://github.com/cert-manager/cert-manager) - Kubernetes add-on that automates the management and issuance of TLS certificates from various sources including Let's Encrypt.
 - [Certbot](https://github.com/certbot/certbot) - EFF's tool for automatically obtaining and renewing Let's Encrypt SSL/TLS certificates with support for various web servers.
+- [Opengrep](https://github.com/opengrep/opengrep) - Fast code scanning tool that finds bugs and enforces code standards using semantic pattern matching across multiple programming languages.
 
 ## Vulnerability & Supply Chain Security
 
@@ -73,3 +75,4 @@ A curated list of useful open-source GitHub projects organized by category
 - [Syft](https://github.com/anchore/syft) - Software Bill of Materials (SBOM) generator that catalogs packages and dependencies from container images and file systems.
 - [Cosign](https://github.com/sigstore/cosign) - Container signing and verification tool that ensures software supply chain security through cryptographic signatures and transparency logs.
 - [Copacetic](https://github.com/project-copacetic/copacetic) - Tool for patching container image vulnerabilities without rebuilding, enabling faster security remediation in production environments.
+- [Dependabot](https://github.com/dependabot/dependabot-core) - Automated dependency update tool that checks for outdated dependencies and creates pull requests to keep projects secure and up-to-date.
