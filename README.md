@@ -71,6 +71,7 @@ A curated list of useful open-source GitHub projects organized by category
 ## Vulnerability & Supply Chain Security
 
 - [Trivy](https://github.com/aquasecurity/trivy) - Comprehensive security scanner that detects vulnerabilities in container images, file systems, Git repositories, and Kubernetes clusters.
+- [Trivy Operator](https://github.com/aquasecurity/trivy-operator) - Kubernetes-native security toolkit that continuously scans workloads for vulnerabilities, misconfigurations, and compliance issues using Trivy.
 - [Grype](https://github.com/anchore/grype) - Vulnerability scanner that identifies known security issues in container images and file systems by matching against multiple vulnerability databases.
 - [Syft](https://github.com/anchore/syft) - Software Bill of Materials (SBOM) generator that catalogs packages and dependencies from container images and file systems.
 - [Cosign](https://github.com/sigstore/cosign) - Container signing and verification tool that ensures software supply chain security through cryptographic signatures and transparency logs.
