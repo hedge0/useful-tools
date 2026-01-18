@@ -577,11 +577,11 @@ Combine multiple operations into single requests to reduce round trips:
 - Batch external API calls to third-party services
 - Use database batch inserts/updates for bulk operations
 
-**Example**: Instead of 100 individual queries, batch into single query with WHERE IN clause.
+Example: Instead of 100 individual queries, batch into single query with WHERE IN clause.
 
 **Concurrency Patterns**
 
-Execute independent operations in parallel to reduce total latency:
+Execute independent operations in parallel to reduce total latency. Don't overwhelm downstream services - respect rate limits and connection pools.
 
 **TypeScript/Node.js (Promise.all):**
 
@@ -616,31 +616,11 @@ user, posts, comments = await asyncio.gather(
 )
 ```
 
-**Use cases**: Fetching multiple database records, calling multiple external APIs, independent data transformations.
-
-**Caution**: Don't overwhelm downstream services - respect rate limits and connection pools.
-
-**Serverless Cold Start Mitigation**
-
-Beyond provisioned concurrency and scheduled invocations (see Architecture Patterns):
-
-**Optimize Package Size:**
-
-- Minimize dependencies in deployment package
-- Use tree-shaking and dead code elimination
-- Remove dev dependencies from production builds
-- Use Lambda layers for shared dependencies (AWS)
-
-**Optimize Initialization:**
-
-- Move expensive initialization outside handler function (runs once per container)
-- Cache database connections, HTTP clients globally
-- Lazy-load rarely-used dependencies
-- Pre-compile regex patterns, load configuration once
+Use cases: Fetching multiple database records, calling multiple external APIs, independent data transformations.
 
 **Caching Strategies**
 
-Implement caching at multiple layers to reduce latency and backend load:
+Implement caching at multiple layers to reduce latency and backend load.
 
 **CDN/Edge Caching** (Cloudflare, CloudFront, Cloud CDN):
 
@@ -668,9 +648,27 @@ Implement caching at multiple layers to reduce latency and backend load:
 
 **Cache Invalidation:**
 
-- Invalidate cache on data updates (write-through or write-behind)
+- Invalidate on data updates (write-through or write-behind)
 - Use versioned cache keys for easy invalidation
 - Monitor cache hit rates to optimize TTLs
+
+**Serverless Cold Start Mitigation**
+
+Beyond provisioned concurrency and scheduled invocations (see Architecture Patterns section):
+
+**Optimize Package Size:**
+
+- Minimize dependencies in deployment package
+- Use tree-shaking and dead code elimination
+- Remove dev dependencies from production builds
+- Use Lambda layers for shared dependencies (AWS)
+
+**Optimize Initialization:**
+
+- Move expensive initialization outside handler function (runs once per container)
+- Cache database connections, HTTP clients globally
+- Lazy-load rarely-used dependencies
+- Pre-compile regex patterns, load configuration once
 
 ## API Versioning
 
