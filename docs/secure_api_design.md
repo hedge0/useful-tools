@@ -143,32 +143,38 @@ Use containers/VMs when:
 
 **Go** (Recommended for serverless):
 
-- Cold start: ~100-200ms
+- Cold start: ~150-250ms
 - Compiled, static binaries, strong dependency management
 - Built-in concurrency (goroutines)
+- Best balance of performance and developer experience
 
 **Rust**:
 
-- Cold start: ~100-150ms
+- Cold start: ~100-200ms
 - Highest performance, memory safety guarantees
 - Steeper learning curve
+- Best for: Ultra-low latency requirements, cost optimization
 
 **TypeScript/Node.js**:
 
-- Cold start: ~400-800ms
-- Rapid development, large ecosystem
+- Cold start: ~200-500ms
+- Rapid development, massive ecosystem
 - Good for I/O-heavy workloads
+- Good for: Full-stack JavaScript teams, high developer velocity
 
 **Python**:
 
-- Cold start: ~600-1000ms
-- Best for data/ML APIs
-- Slowest cold starts
+- Cold start: ~300-500ms
+- Excellent for data/ML APIs, large ecosystem
+- Competitive cold start times despite being interpreted
+- Good for: Data processing, ML inference, teams familiar with Python
 
 **Java**:
 
 - Cold start: ~2-3 seconds (JVM initialization)
-- Only use in containers/VMs or with GraalVM native images
+- Slowest cold starts without mitigation
+- With SnapStart (2025): Reduces to ~200-400ms
+- Only use in containers/VMs or with SnapStart/GraalVM native images
 
 ## Application Security (Pre-Deployment)
 
