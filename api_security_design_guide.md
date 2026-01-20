@@ -321,6 +321,39 @@ Store all sensitive credentials in external secrets manager - never hardcode or 
 - Serverless: Fetch on cold start with SDK caching
 - Containers: Fetch on startup, rotate periodically
 
+### Data Encryption at Rest
+
+Encrypt sensitive data before storing in databases to protect against database breaches, stolen backups, and insider threats.
+
+**Managed Database Encryption** (baseline protection):
+
+Enable encryption at database creation - protects against physical disk theft and unauthorized disk access:
+
+- AWS RDS: `storage_encrypted = true` with optional KMS key
+- GCP Cloud SQL: Enable disk encryption with customer-managed keys
+- Azure Database: Transparent Data Encryption (TDE) enabled by default
+
+**Application-Level Encryption** (for sensitive PII/PHI/PCI data):
+
+Encrypt sensitive fields in application code before writing to database using AES-256-GCM or equivalent:
+
+- Encrypt: Credit card numbers, SSNs, medical records, financial data
+- Use envelope encryption: Generate data encryption key (DEK) from KMS (AWS KMS, GCP Cloud KMS, Azure Key Vault)
+- Store encrypted DEK alongside ciphertext in database
+- Libraries: AWS Encryption SDK, Google Tink, Azure SDK
+
+**Why both layers**:
+
+- Managed DB encryption: Compliance baseline, protects data on disk
+- Application-level encryption: Protects against DBAs, SQL injection, credential compromise, stolen backups
+
+**When application-level encryption is required**:
+
+- HIPAA PHI, PCI-DSS cardholder data, highly sensitive PII
+- Zero-trust requirements (don't trust cloud admins or DBAs)
+- Multi-tenant SaaS with customer-managed encryption keys
+- Regulatory requirements for end-to-end encryption
+
 ### CORS Configuration
 
 Configure Cross-Origin Resource Sharing for frontend API calls - never use wildcard (`*`):
@@ -889,6 +922,11 @@ This guide's security controls prevent real-world attacks commonly seen in produ
 
 - Attack: Malicious SQL injected into parameters to access/modify database
 - Mitigated by: Parameterized queries (prepared statements), input validation (Zod, Pydantic, Joi), WAF rules blocking injection patterns, SAST scanning (Opengrep) catching vulnerable code pre-deployment
+
+**Database Breach & Data Exfiltration**
+
+- Attack: Direct database access via compromised credentials, stolen backups, or insider threat exposing plaintext sensitive data
+- Mitigated by: Managed database encryption at rest (AWS RDS, GCP Cloud SQL, Azure TDE), application-level encryption for PII/PHI/PCI data (AES-256-GCM with KMS), encrypted backups, secrets in external vaults, least-privilege database access
 
 **Information Disclosure via Error Messages**
 
