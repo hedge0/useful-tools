@@ -1,4 +1,4 @@
-# SLSA-Compliant Container Image Build Pipeline
+# SLSA Build Pipeline Guide
 
 A cloud-agnostic guide for building secure, verifiable container images with SLSA Level 3 compliance using GitHub Actions. This guide includes industry best practices and lessons learned from real-world production implementations.
 

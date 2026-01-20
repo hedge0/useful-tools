@@ -1,4 +1,4 @@
-# Secure API Design Guide
+# API Security Design Guide
 
 A cloud-agnostic guide for building production-ready APIs with a practical blend of security and performance. This guide includes industry best practices and lessons learned from real-world implementations across serverless and traditional architectures.
 
