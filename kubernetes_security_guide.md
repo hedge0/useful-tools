@@ -777,7 +777,7 @@ This guide's security controls prevent real-world Kubernetes attacks commonly se
 **Malicious Runtime Behavior**
 
 - Attack: Unexpected processes spawning (crypto miners, reverse shells, data exfiltration tools)
-- Mitigated by: Falco detecting shell spawns/suspicious syscalls/file access, network connection monitoring, automatic NetworkPolicy isolation
+- Mitigated by: Hardened images with package managers removed (no apt/yum/apk), non-root user enforcement, Falco detecting shell spawns/suspicious syscalls/file access, network connection monitoring, automatic NetworkPolicy isolation
 
 **Resource Exhaustion / DoS**
 

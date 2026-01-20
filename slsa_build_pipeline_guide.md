@@ -378,6 +378,11 @@ This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the s
 
 ### Runtime Vulnerability Management
 
+**Runtime Package Manager Abuse**
+
+- Attack: Attackers use package managers (apt, yum, apk) in compromised containers to install malicious tools
+- Mitigated by: Hardened stage in Dockerfile removes all package managers, non-root user preventing installations, immutable read-only root filesystem where possible
+
 **Unpatched Runtime Vulnerabilities**
 
 - Attack: New CVEs disclosed after image deployment creating exploitable vulnerabilities
