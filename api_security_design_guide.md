@@ -18,7 +18,8 @@ A cloud-agnostic guide for building production-ready APIs with a practical blend
 10. [Performance Optimization](#performance-optimization)
 11. [API Versioning](#api-versioning)
 12. [Incident Response](#incident-response)
-13. [References](#references)
+13. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+14. [References](#references)
 
 ## Overview
 
@@ -860,6 +861,98 @@ Respond to security incidents quickly and effectively to minimize damage.
 - Enhance monitoring/alerting to detect similar incidents earlier
 - Patch identified vulnerabilities and strengthen security controls
 - Notify affected users per compliance requirements (GDPR, CCPA, HIPAA)
+
+## Attack Scenarios Prevented
+
+This guide's security controls prevent real-world attacks commonly seen in production environments.
+
+### Credential Stuffing Attack
+
+**Attack**: Attackers use stolen username/password pairs from data breaches to gain unauthorized access.
+
+**Mitigated by**:
+
+- Edge rate limiting (blocks bulk login attempts at WAF)
+- Application-layer rate limiting on `/login` endpoint (5 requests/minute)
+- Failed authentication monitoring and alerting
+- IP blocking at edge after threshold violations
+
+### JWT Token Manipulation
+
+**Attack**: Attackers tamper with JWT tokens to elevate privileges or impersonate other users.
+
+**Mitigated by**:
+
+- Complete JWT validation (signature, issuer, audience, expiration, algorithm)
+- Algorithm confusion prevention (enforcing RS256, rejecting `none`)
+- Short-lived tokens (15 minutes) limiting exposure window
+- Proper signature verification preventing token tampering
+
+### SQL Injection
+
+**Attack**: Attackers inject malicious SQL into API parameters to access or modify database data.
+
+**Mitigated by**:
+
+- Parameterized queries (prepared statements) preventing SQL concatenation
+- Input validation with schema enforcement (Zod, Pydantic, Joi)
+- WAF rules blocking common SQL injection patterns
+- SAST scanning (Opengrep) catching vulnerable code pre-deployment
+
+### API Key Exposure & Abuse
+
+**Attack**: Leaked API keys used to access services, often discovered in public GitHub repositories or client-side code.
+
+**Mitigated by**:
+
+- Secret scanning (TruffleHog, GitHub Secret Scanning) preventing commits
+- Secrets stored in external vaults (AWS Secrets Manager, GCP Secret Manager)
+- Per-user rate limiting preventing single key from causing damage
+- Automated credential rotation after suspected compromise
+
+### DDoS / Resource Exhaustion
+
+**Attack**: Overwhelming API with requests to cause service degradation or outage.
+
+**Mitigated by**:
+
+- Edge-layer DDoS protection (Cloudflare, AWS Shield, Cloud Armor)
+- Aggressive edge rate limiting (100-2000 req/min per IP)
+- Application-layer endpoint-specific limits
+- Auto-scaling infrastructure (serverless or container orchestration)
+
+### Cache Poisoning
+
+**Attack**: Serving user A's cached data to user B, leaking sensitive information.
+
+**Mitigated by**:
+
+- Cache keys include authentication context (user ID, token)
+- `Cache-Control: no-store` headers on sensitive endpoints
+- Proper CORS configuration preventing cross-origin cache attacks
+- API Gateway caching configured with authentication-aware keys
+
+### Dependency Vulnerabilities
+
+**Attack**: Exploiting known vulnerabilities in outdated libraries and dependencies.
+
+**Mitigated by**:
+
+- Dependabot automated dependency updates
+- SAST scanning for vulnerable code patterns
+- Pre-deployment security scans in CI/CD
+- Regular dependency audits and timely patching
+
+### Information Disclosure via Error Messages
+
+**Attack**: Extracting sensitive information from verbose error messages (database details, file paths, internal IPs).
+
+**Mitigated by**:
+
+- Generic external error messages (no stack traces, queries, or paths)
+- Detailed errors logged internally only
+- Request IDs for support without exposing internals
+- Consistent error response structure
 
 ## References
 

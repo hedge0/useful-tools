@@ -20,7 +20,8 @@ A cloud-agnostic guide for building secure, verifiable container images with SLS
 4. [Post-Pipeline Operations](#post-pipeline-operations)
    - [Continuous Vulnerability Monitoring](#continuous-vulnerability-monitoring)
    - [Runtime Policy Enforcement with Kubernetes](#runtime-policy-enforcement-with-kubernetes)
-5. [References](#references)
+5. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+6. [References](#references)
 
 ## Overview
 
@@ -319,6 +320,120 @@ Generate SLSA provenance, SBOMs, vulnerability scan reports, sign all artifacts,
 - **[Istio](https://github.com/istio/istio)**: Service mesh for enforcing mutual TLS (mTLS) between containers, traffic management, network policies, and observability
 - **[Falco](https://github.com/falcosecurity/falco)**: Runtime threat detection for unusual container behavior
 - **Pod Security Standards**: Enforce baseline/restricted pod security standards
+
+## Attack Scenarios Prevented
+
+This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the software build and delivery process.
+
+### Malicious Dependency Injection
+
+**Attack**: Attackers compromise upstream dependencies (packages, libraries) to inject malicious code into builds.
+
+**Mitigated by**:
+
+- Dependabot monitoring for compromised or vulnerable dependencies
+- SBOM generation (CycloneDX, SPDX) cataloging all dependencies
+- Version pinning (never use `latest` tags)
+- SAST scanning (Opengrep) detecting suspicious code in dependencies
+
+### Compromised Base Image
+
+**Attack**: Attackers inject backdoors into base container images used for builds.
+
+**Mitigated by**:
+
+- Docker Hardened Images as trusted base (battle-tested, vendor-maintained)
+- Copacetic patching immediately after build to fix base image CVEs
+- Trivy vulnerability scanning of complete image stack
+- Image signing with Cosign preventing unsigned base images
+
+### Build-Time Code Injection
+
+**Attack**: Attackers modify source code or build scripts during CI/CD execution.
+
+**Mitigated by**:
+
+- Ephemeral build environments (GitHub Actions runners) with no shared state
+- Git commit verification ensuring code integrity
+- SLSA provenance tracking exact source commit used in build
+- Signed attestations proving build integrity
+
+### Registry Poisoning
+
+**Attack**: Attackers push malicious images to registry impersonating legitimate builds.
+
+**Mitigated by**:
+
+- Image signing with Cosign BEFORE registry push (no unsigned window)
+- Cosign signature verification in Kubernetes via Kyverno
+- SLSA attestation attached to images proving authentic build
+- Private signing keys stored in external vault (never in code)
+
+### Vulnerability Deployment
+
+**Attack**: Deploying container images with known HIGH/CRITICAL CVEs to production.
+
+**Mitigated by**:
+
+- Copacetic patching during build (fixes OS-level vulnerabilities)
+- Trivy vulnerability scanning blocking images with critical unfixed CVEs
+- Go projects recompiled with latest toolchain (patches stdlib vulnerabilities)
+- Continuous post-deployment scanning with Trivy Operator
+
+### Unsigned Artifact Tampering
+
+**Attack**: Attackers modify SBOMs, vulnerability reports, or attestations after generation.
+
+**Mitigated by**:
+
+- All artifacts signed with Cosign (attestations, SBOMs, scan reports)
+- Signatures verified before trusting artifacts
+- Artifacts stored in object storage (S3/GCS) with versioning and access controls
+- Immutable artifact chain from build to deployment
+
+### Source Code Secret Leakage
+
+**Attack**: Hardcoded credentials, API keys, or tokens accidentally committed to source code.
+
+**Mitigated by**:
+
+- TruffleHog secret scanning in pre-commit hooks
+- GitHub Secret Scanning blocking commits with detected secrets
+- SAST scanning (Opengrep) for hardcoded credentials
+- All secrets stored in external vaults (AWS Secrets Manager, GCP Secret Manager)
+
+### Build Process Manipulation
+
+**Attack**: Attackers manipulate build flags, dependencies, or compilation process to inject vulnerabilities.
+
+**Mitigated by**:
+
+- SLSA provenance documenting exact build parameters and environment
+- Reproducible builds with pinned toolchain versions
+- Ephemeral build environments preventing persistent state manipulation
+- Attestations cryptographically proving build integrity
+
+### Unpatched Runtime Vulnerabilities
+
+**Attack**: New CVEs disclosed after image deployment, creating exploitable vulnerabilities.
+
+**Mitigated by**:
+
+- Daily automated scanning of published images for new CVEs
+- Automated rebuilds triggered when patchable vulnerabilities found
+- Copacetic re-patching in rebuild pipeline
+- GitOps deployment of updated images via ArgoCD
+
+### Compromised Container Registry
+
+**Attack**: Attackers gain access to container registry and modify or replace images.
+
+**Mitigated by**:
+
+- Image signature verification in Kubernetes (Kyverno + Cosign)
+- SLSA attestation verification ensuring images match build provenance
+- Registry access controls and audit logging
+- Immutable image tags (never overwrite existing tags)
 
 ## References
 
