@@ -21,7 +21,14 @@ A cloud-agnostic guide for building secure, verifiable container images with SLS
    - [Continuous Vulnerability Monitoring](#continuous-vulnerability-monitoring)
    - [Runtime Policy Enforcement with Kubernetes](#runtime-policy-enforcement-with-kubernetes)
 5. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+   - [Build-Time Security](#build-time-security)
+   - [Dependency & Base Image Security](#dependency--base-image-security)
+   - [Registry & Artifact Security](#registry--artifact-security)
+   - [Runtime Vulnerability Management](#runtime-vulnerability-management)
 6. [References](#references)
+   - [SLSA Framework](#slsa-framework)
+   - [Tools and Projects](#tools-and-projects)
+   - [Standards and Specifications](#standards-and-specifications)
 
 ## Overview
 

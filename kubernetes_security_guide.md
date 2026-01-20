@@ -9,18 +9,53 @@ A cloud-agnostic guide for building production-ready Kubernetes clusters with de
    - [Required Tools](#required-tools)
    - [External Services](#external-services)
 3. [Network Architecture & Database Layer](#network-architecture--database-layer)
+   - [Network Design](#network-design)
+   - [Database Layer](#database-layer)
 4. [Cluster Architecture & Separation](#cluster-architecture--separation)
+   - [Two-Cluster Design (Recommended)](#two-cluster-design-recommended)
+   - [Single Cluster Alternative](#single-cluster-alternative)
+   - [Network Policy Implementation](#network-policy-implementation)
 5. [Ingress & Traffic Management](#ingress--traffic-management)
+   - [Load Balancer Architecture](#load-balancer-architecture)
+   - [WAF Configuration](#waf-configuration)
+   - [Istio Service Mesh](#istio-service-mesh)
 6. [Policy Enforcement with Kyverno](#policy-enforcement-with-kyverno)
+   - [Kyverno Policy Engine](#kyverno-policy-engine)
 7. [Continuous Vulnerability & Threat Detection](#continuous-vulnerability--threat-detection)
-8. [External Secrets Integration](#external-secrets-integration)
-9. [Secret Rotation & Lifecycle Management](#secret-rotation--lifecycle-management)
-10. [Infrastructure as Code & GitOps](#infrastructure-as-code--gitops)
-11. [Observability & Logging](#observability--logging)
-12. [Disaster Recovery](#disaster-recovery)
-13. [Incident Response](#incident-response)
-14. [Attack Scenarios Prevented](#attack-scenarios-prevented)
-15. [References](#references)
+   - [Trivy Operator for Vulnerability Scanning](#trivy-operator-for-vulnerability-scanning)
+   - [Falco Runtime Security](#falco-runtime-security)
+8. [Secrets Management](#secrets-management)
+   - [External Secrets Management](#external-secrets-management)
+   - [AWS EKS Integration](#aws-eks-integration)
+   - [GCP GKE Integration](#gcp-gke-integration)
+   - [Azure AKS Integration](#azure-aks-integration)
+   - [Secret Rotation](#secret-rotation)
+9. [Infrastructure as Code & GitOps](#infrastructure-as-code--gitops)
+   - [Terraform for Infrastructure](#terraform-for-infrastructure)
+   - [ArgoCD for GitOps](#argocd-for-gitops)
+10. [Observability & Logging](#observability--logging)
+    - [Fluentd Log Aggregation](#fluentd-log-aggregation)
+    - [Prometheus & Grafana](#prometheus--grafana)
+    - [Log Retention & Compliance](#log-retention--compliance)
+11. [Disaster Recovery](#disaster-recovery)
+    - [Recovery Strategy](#recovery-strategy)
+    - [Recovery Procedure](#recovery-procedure)
+    - [Testing & Validation](#testing--validation)
+12. [Incident Response](#incident-response)
+    - [Detection & Initial Response](#detection--initial-response)
+    - [Containment & Recovery](#containment--recovery)
+    - [Post-Incident](#post-incident)
+13. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+    - [Container & Pod Security](#container--pod-security)
+    - [Network & Lateral Movement](#network--lateral-movement)
+    - [Supply Chain & Image Security](#supply-chain--image-security)
+    - [Secrets & Configuration](#secrets--configuration)
+14. [References](#references)
+    - [Infrastructure & Orchestration](#infrastructure--orchestration)
+    - [Security & Policy](#security--policy)
+    - [Observability](#observability)
+    - [Managed Kubernetes Services](#managed-kubernetes-services)
+    - [Standards & Documentation](#standards--documentation)
 
 ## Overview
 
@@ -486,9 +521,9 @@ Deploy [Falco](https://github.com/falcosecurity/falco) for real-time threat dete
 - Configure severity levels (info, warning, critical)
 - Alert on critical events only (reduce noise)
 
-## External Secrets Integration
+## Secrets Management
 
-Store secrets in external vault services and inject them into Kubernetes pods securely.
+Store secrets in external vault services and inject them into Kubernetes pods securely with modern lifecycle management practices.
 
 ### External Secrets Management
 
@@ -522,10 +557,6 @@ Store secrets in external vault services and inject them into Kubernetes pods se
 - Azure Key Vault Provider for Secrets Store CSI Driver
 - Managed identities for pod authentication
 - Secrets mounted as volumes
-
-## Secret Rotation & Lifecycle Management
-
-Implement modern best practices for secret rotation and lifecycle management.
 
 ### Secret Rotation
 
