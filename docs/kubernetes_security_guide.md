@@ -189,6 +189,48 @@ Use Kubernetes namespaces with strict NetworkPolicies if cost is primary constra
 
 **Recommendation**: Use separate clusters for production - minimal overhead with managed Kubernetes, significant security benefit.
 
+### Network Policy Implementation
+
+Without NetworkPolicies, namespace isolation is convention only. Apply these two policies to enforce separation:
+
+**Default deny all ingress (apply to each namespace):**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+```
+
+**Allow traffic from Istio gateway to your apps:**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: istio-system
+      ports:
+        - protocol: TCP
+          port: 8080
+```
+
+Apply default-deny first, then explicitly allow required traffic. Test with: `kubectl exec -it pod-name -- curl http://service.namespace.svc.cluster.local`
+
 ## Ingress & Traffic Management
 
 Configure load balancers, WAF, and service mesh to secure and route traffic to appropriate services.
@@ -223,133 +265,218 @@ Deploy Web Application Firewall at load balancer to filter malicious traffic:
 
 - Automatic mTLS encryption between all pods
 - Prevents man-in-the-middle attacks on internal traffic
-- Zero application code changes required
-- Istio manages certificates automatically (24-hour rotation)
+- Zero configuration required after Istio installation
+- Automatic certificate rotation
 
-**Traffic Routing**:
+**Traffic Management**:
 
-- Istio VirtualServices define which services are externally accessible
-- Customer-facing APIs route from ALB through Istio ingress gateway
-- Internal services (admin APIs, background jobs) remain cluster-internal only
-- Services without VirtualService configuration cannot be reached from internet
+- Intelligent routing based on headers, weights, or conditions
+- Canary deployments: Route 5% of traffic to new version
+- A/B testing: Route specific users to experimental features
+- Circuit breaking: Fail fast when backend services are unhealthy
 
-**Network Policies**:
+**Observability**:
 
-- Kubernetes NetworkPolicies restrict pod-to-pod communication
-- Only allow necessary connections (API → Database, API → Cache)
-- Deny all other traffic by default
+- Distributed tracing with Jaeger or Zipkin
+- Service-to-service metrics (latency, error rates)
+- Visualize traffic flow with Kiali dashboard
 
 ## Runtime Security & Policy Enforcement
 
-Enforce security policies and monitor runtime behavior to prevent and detect threats.
+Enforce security policies at deployment time and monitor runtime behavior for threats.
 
 ### Kyverno Policy Engine
 
-Deploy Kyverno for Kubernetes-native policy enforcement at admission time.
+Deploy [Kyverno](https://github.com/kyverno/kyverno) for Kubernetes-native policy enforcement without learning a new language.
 
-**Image Signature Verification**:
+**Essential Policies**:
 
-- Require all container images signed with Cosign
-- Verify signatures against trusted public key before pod creation
-- Reject unsigned or invalidly signed images
-- Ensures only images from your build pipeline run in cluster
+**Require resource limits** (prevent resource exhaustion):
 
-**Container Security Standards**:
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: check-resources
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "CPU and memory limits required"
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+```
 
-- Enforce non-root containers (block UID 0)
-- Require read-only root filesystem where possible
-- Block privileged containers and dangerous capabilities
-- Enforce resource limits (CPU, memory) on all pods
-- Require distroless or minimal base images (no package managers)
+**Block privileged containers**:
 
-**Additional Policies**:
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: check-privileged
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Privileged mode is not allowed"
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  privileged: false
+```
 
-- Block hostNetwork, hostPID, hostIPC usage
-- Require pod security labels
-- Enforce image registry allowlist (only approved registries)
-- Validate required security contexts
+**Require non-root containers**:
 
-### Falco Runtime Monitoring
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: check-runAsNonRoot
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Containers must run as non-root user"
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+```
 
-Deploy Falco for real-time threat detection of suspicious container behavior.
+**Verify image signatures** (requires [Cosign](https://github.com/sigstore/cosign)):
 
-**What Falco Detects**:
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: check-signature
+      match:
+        resources:
+          kinds:
+            - Pod
+      verifyImages:
+        - imageReferences:
+            - "*"
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      ...your public key...
+                      -----END PUBLIC KEY-----
+```
 
-- Unexpected process execution in containers
-- File system modifications in read-only paths
-- Network connections to unexpected destinations
+**Deployment workflow**: Kyverno runs as admission controller, validates policies before pods are created, blocks non-compliant workloads automatically.
+
+### Trivy Operator for Vulnerability Scanning
+
+Deploy [Trivy Operator](https://github.com/aquasecurity/trivy-operator) for continuous security scanning in Kubernetes.
+
+**What it scans**:
+
+- Container images for OS and application vulnerabilities
+- Kubernetes configuration for security misconfigurations
+- Infrastructure as Code (IaC) files for compliance issues
+- SBOM generation for all running images
+
+**How it works**:
+
+- Runs as Kubernetes operator (continuously scans cluster)
+- Scans new images automatically when pods are deployed
+- Stores results as Kubernetes custom resources (VulnerabilityReports, ConfigAuditReports)
+- Integrates with Prometheus for alerting on critical vulnerabilities
+
+**Integration with logging**:
+
+- Export vulnerability reports to Fluentd
+- Forward to external SIEM (Splunk, ELK Stack, cloud logging)
+- Alert on HIGH and CRITICAL vulnerabilities
+- Track remediation progress over time
+
+### Falco Runtime Security
+
+Deploy [Falco](https://github.com/falcosecurity/falco) for real-time threat detection in containers.
+
+**What Falco detects**:
+
+- Shell spawned in container (potential breakout attempt)
+- Sensitive file access (/etc/shadow, SSH keys)
+- Unexpected network connections
 - Privilege escalation attempts
-- Shell spawned in container (potential compromise)
-- Sensitive file access (/etc/shadow, SSH keys, credentials)
+- Container processes accessing host filesystem
+- Suspicious system calls
 
-**Alert Configuration**:
+**Deployment**:
 
-- Send alerts to external SIEM via Fluentd
-- Integrate with Slack/PagerDuty for critical alerts
-- Log all events for forensic analysis
-- Configure severity levels (info, warning, critical)
+- Deploy as DaemonSet (runs on every node)
+- Uses eBPF or kernel module to intercept system calls
+- Zero performance impact on applications
+- Rules are customizable for your environment
 
-### Trivy Operator Vulnerability Scanning
+**Alerting**:
 
-Deploy Trivy Operator for continuous vulnerability scanning of running workloads.
-
-**Scanning Strategy**:
-
-- Daily automated scans of all container images in cluster
-- Scan on new pod deployment
-- Generate vulnerability reports as Kubernetes custom resources
-- Alert on HIGH and CRITICAL vulnerabilities with available fixes
-
-**Reporting**:
-
-- Export scan results to Prometheus for metrics
-- Visualize in Grafana dashboards
-- Store reports in object storage (S3/GCS/Azure Blob)
-- Track vulnerability remediation over time
-
-**Automated Response**:
-
-- Trigger alerts when new CVEs discovered in running images
-- Optionally trigger automated image rebuilds via ArgoCD/CI pipeline
-- Update deployments with patched images
+- Forward alerts to Fluentd, then to SIEM
+- Slack/PagerDuty integration for real-time notifications
+- Alert on critical events only (reduce noise)
 
 ## Secrets Management
 
-Store and inject secrets securely using cloud-native integrations. Never store secrets in ConfigMaps, environment variables in code, or Git repositories.
+Store secrets in external vault services and inject them into Kubernetes pods securely.
 
-### External Secrets Storage
+### External Secrets Management
 
-**Use cloud-native secrets managers**:
+**Never store secrets in**:
 
-- AWS Secrets Manager
-- GCP Secret Manager
-- Azure Key Vault
+- Kubernetes Secrets (base64 encoded, not encrypted at rest by default)
+- ConfigMaps
+- Environment variables in Dockerfiles
+- Git repositories
+
+**Always store secrets in**:
+
+- AWS Secrets Manager, GCP Secret Manager, Azure Key Vault
 - HashiCorp Vault
+- External secrets management with encryption, access control, audit logging
 
-**Store in secrets manager**:
+### AWS EKS Integration
 
-- Database credentials (username, password, connection strings)
-- API keys and tokens for external services
-- TLS certificates and private keys
-- OAuth client secrets and encryption keys
+- Secrets Store CSI Driver with AWS Secrets Manager provider
+- IAM Roles for Service Accounts (IRSA) for authentication
+- Secrets mounted as volumes (not environment variables for sensitive data)
 
-### Secrets Injection into Pods
+### GCP GKE Integration
 
-Load secrets at runtime using cloud-native Kubernetes integrations:
+- Workload Identity for pod authentication to Secret Manager
+- GCP Secret Manager CSI Driver
+- Secrets mounted as volumes
 
-**AWS EKS**:
-
-- Secrets Store CSI Driver with AWS Secrets Manager
-- IAM roles for service accounts (IRSA) for authentication
-- Secrets mounted as volumes or environment variables
-
-**GCP GKE**:
-
-- Workload Identity with Secret Manager
-- No service account keys required
-- Pods access secrets via GCP SDK
-
-**Azure AKS**:
+### Azure AKS Integration
 
 - Azure Key Vault Provider for Secrets Store CSI Driver
 - Managed identities for pod authentication

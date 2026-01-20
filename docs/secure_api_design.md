@@ -352,6 +352,43 @@ Validate authentication tokens on every protected endpoint:
 - Extract user context (ID, roles, permissions) for authorization
 - Use provider SDKs: AWS Cognito, GCP Identity Platform, Auth0, Firebase Auth
 
+### JWT Validation Checklist
+
+JWT auth bypass is common due to incomplete validation. Validate all claims:
+
+**Minimum validation required:**
+
+```javascript
+// Node.js example - adapt to your language
+const jwt = require("jsonwebtoken");
+
+function validateToken(token) {
+  return jwt.verify(token, publicKey, {
+    algorithms: ["RS256"], // Prevent algorithm confusion
+    issuer: "https://auth.yourcompany.com", // Must match your auth server
+    audience: "your-api-id", // Must match your API
+    clockTolerance: 30, // Allow 30s clock skew
+  });
+  // Library validates exp (expiration) automatically
+}
+```
+
+**Critical vulnerabilities to prevent:**
+
+1. **Algorithm confusion**: Always specify `algorithms: ['RS256']`, never accept `none`
+2. **Missing issuer check**: Token from evil.com shouldn't work on yourapi.com
+3. **Missing audience check**: Token for api-a shouldn't work on api-b
+4. **No signature verification**: Never use `jwt.decode()` - always `jwt.verify()`
+
+**Best practices:**
+
+- Use RS256 (asymmetric), not HS256 (symmetric) for APIs
+- Keep access tokens short-lived (15 minutes)
+- Never put sensitive data in JWT payload (it's base64-encoded, not encrypted)
+- Cache public keys, don't fetch on every request
+
+**Test your validation:** Try using an expired token, wrong audience, or tampered signature - all should be rejected.
+
 ### Request Validation
 
 **HTTP Method Validation**:
