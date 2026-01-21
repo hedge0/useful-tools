@@ -30,6 +30,7 @@ A cloud-agnostic guide for building production-ready APIs with a practical blend
    - [JWT Validation Checklist](#jwt-validation-checklist)
 7. [Data Security & Input Validation](#data-security--input-validation)
    - [Data Encryption at Rest](#data-encryption-at-rest)
+   - [Encryption in Transit & TLS Requirements](#encryption-in-transit--tls-requirements)
    - [Request Validation](#request-validation)
    - [Input Sanitization](#input-sanitization)
 8. [Rate Limiting & Throttling](#rate-limiting--throttling)
@@ -479,6 +480,75 @@ Encrypt sensitive fields in application code before writing to database using AE
 - Zero-trust requirements (don't trust cloud admins or DBAs)
 - Multi-tenant SaaS with customer-managed encryption keys
 - Regulatory requirements for end-to-end encryption
+
+### Encryption in Transit & TLS Requirements
+
+Encrypt all network communication to protect data as it travels between clients, edge services, application servers, and databases.
+
+**TLS Version Requirements**:
+
+- **TLS 1.3** (Recommended): Faster handshake, improved security, removed weak ciphers
+- **TLS 1.2** (Acceptable): Use as fallback for legacy client compatibility
+- **Deprecate TLS 1.0/1.1**: Both are outdated and vulnerable (POODLE, BEAST attacks)
+
+Prefer TLS 1.3 for all modern clients (browsers, mobile apps, API clients). Use TLS 1.2 fallback only if analytics show significant traffic from legacy systems.
+
+**Edge-to-Origin TLS Configuration**:
+
+**Cloudflare Setup**:
+
+- **Client → Cloudflare**: Cloudflare's SSL certificate (automatic, managed by Cloudflare)
+- **Cloudflare → Origin Server**: Origin server's SSL certificate (Cloudflare Origin Certificate or self-signed)
+- **SSL Mode**: Set to **Strict** or **Full (Strict)** in Cloudflare dashboard
+  - Validates origin certificate and prevents man-in-the-middle attacks
+  - Never use **Flexible** mode (Cloudflare → Origin uses unencrypted HTTP)
+- **Why this matters**: Traffic between Cloudflare edge and origin traverses the internet, encryption is mandatory
+
+**Cloud-Native Load Balancer** (AWS ALB, GCP Load Balancing, Azure Application Gateway):
+
+Two approaches depending on security requirements:
+
+1. **TLS Termination at Load Balancer** (most common):
+
+   - Load balancer has public certificate (AWS ACM, GCP Certificate Manager, Azure certificates)
+   - Load balancer terminates TLS, forwards HTTP to origin in private subnet
+   - **Acceptable when**: Origin isolated in private VPC, strict security groups, no compliance requirements
+   - Simpler configuration, no certificate management on origin
+
+2. **End-to-End TLS** (compliance scenarios):
+   - Both load balancer and origin have certificates, HTTPS throughout
+   - **Required for**: HIPAA, PCI-DSS, SOC 2, zero-trust architecture
+   - Defense in depth - traffic encrypted even within VPC
+
+**Database Connection Encryption**:
+
+Always enforce SSL/TLS for database connections to prevent credential exposure:
+
+- **AWS RDS**: Set `require_secure_transport = 1` parameter, use `sslmode=require` in connection string
+- **GCP Cloud SQL**: Enable "Require SSL" option, download server CA certificate
+- **Azure Database**: Set `require_secure_transport = ON`, use SSL connection string parameter
+
+Example connection strings:
+
+```python
+# PostgreSQL with SSL
+DATABASE_URL = "postgresql://user:pass@host:5432/db?sslmode=require"
+
+# MySQL with SSL
+DATABASE_URL = "mysql://user:pass@host:3306/db?ssl-mode=REQUIRED"
+```
+
+**Service-to-Service Communication**:
+
+- **Kubernetes deployments**: Use Istio service mesh for automatic mutual TLS (mTLS) between pods (see Kubernetes Security Guide)
+- **Non-Kubernetes**: Internal API calls should use HTTPS or be isolated in private network with strict access controls
+- **External third-party APIs**: Always use HTTPS, validate TLS certificates, enforce TLS 1.2+ minimum
+
+**Certificate Management**:
+
+- Use managed certificates with automatic renewal: Let's Encrypt (free), AWS ACM, GCP Certificate Manager, Azure certificates
+- Set HSTS header `Strict-Transport-Security: max-age=31536000; includeSubDomains` to force HTTPS in browsers
+- Automate rotation for origin certificates (30-90 day validity recommended)
 
 ### Request Validation
 
