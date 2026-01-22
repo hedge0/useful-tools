@@ -173,60 +173,56 @@ Design secure network topology with proper isolation and managed databases for p
 
 **Multi-AZ Network Architecture:**
 
-```mermaid
-graph TB
-    subgraph "VPC - 10.0.0.0/16"
-        subgraph "Availability Zone 1"
-            PubSub1["Public Subnet<br/>10.0.1.0/24<br/>ALB"]
-            PrivSub1["Private Subnet<br/>10.0.11.0/24<br/>K8s Workers"]
-            DBSub1["Database Subnet<br/>10.0.21.0/24<br/>RDS"]
-        end
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              VPC - 10.0.0.0/16                                  │
+│                                                                                 │
+│  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐       │
+│  │ Availability Zone 1│  │ Availability Zone 2│  │ Availability Zone 3│       │
+│  │                    │  │                    │  │                    │       │
+│  │ ┌────────────────┐ │  │ ┌────────────────┐ │  │ ┌────────────────┐ │       │
+│  │ │ Public Subnet  │ │  │ │ Public Subnet  │ │  │ │ Public Subnet  │ │       │
+│  │ │ 10.0.1.0/24    │ │  │ │ 10.0.2.0/24    │ │  │ │ 10.0.3.0/24    │ │       │
+│  │ │                │ │  │ │                │ │  │ │                │ │       │
+│  │ │  ┌───────────┐ │ │  │ │  ┌───────────┐ │ │  │ │  ┌───────────┐ │ │       │
+│  │ │  │    ALB    │ │ │  │ │  │    ALB    │ │ │  │ │  │    ALB    │ │ │       │
+│  │ │  └─────┬─────┘ │ │  │ │  └─────┬─────┘ │ │  │ │  └─────┬─────┘ │ │       │
+│  │ │  ┌─────▼─────┐ │ │  │ │  ┌─────▼─────┐ │ │  │ │  ┌─────▼─────┐ │ │       │
+│  │ │  │    NAT    │ │ │  │ │  │    NAT    │ │ │  │ │  │    NAT    │ │ │       │
+│  │ │  │  Gateway  │ │ │  │ │  │  Gateway  │ │ │  │ │  │  Gateway  │ │ │       │
+│  │ └──┴───────────┴─┘ │  │ └──┴───────────┴─┘ │  │ └──┴───────────┴─┘ │       │
+│  │         │           │  │         │           │  │         │           │       │
+│  │ ┌───────▼─────────┐ │  │ ┌───────▼─────────┐ │  │ ┌───────▼─────────┐ │       │
+│  │ │ Private Subnet  │ │  │ │ Private Subnet  │ │  │ │ Private Subnet  │ │       │
+│  │ │ 10.0.11.0/24    │ │  │ │ 10.0.12.0/24    │ │  │ │ 10.0.13.0/24    │ │       │
+│  │ │                 │ │  │ │                 │ │  │ │                 │ │       │
+│  │ │ ┌─────────────┐ │ │  │ │ ┌─────────────┐ │ │  │ │ ┌─────────────┐ │ │       │
+│  │ │ │ K8s Workers │ │ │  │ │ │ K8s Workers │ │ │  │ │ │ K8s Workers │ │ │       │
+│  │ │ │   (Nodes)   │ │ │  │ │ │   (Nodes)   │ │ │  │ │ │   (Nodes)   │ │ │       │
+│  │ │ └──────┬──────┘ │ │  │ │ └──────┬──────┘ │ │  │ │ └──────┬──────┘ │ │       │
+│  │ └────────┼────────┘ │  │ └────────┼────────┘ │  │ └────────┼────────┘ │       │
+│  │          │           │  │          │           │  │          │           │       │
+│  │ ┌────────▼────────┐  │  │ ┌────────▼────────┐  │  │ ┌────────▼────────┐  │       │
+│  │ │ Database Subnet │  │  │ │ Database Subnet │  │  │ │ Database Subnet │  │       │
+│  │ │ 10.0.21.0/24    │  │  │ │ 10.0.22.0/24    │  │  │ │ 10.0.23.0/24    │  │       │
+│  │ │                 │  │  │ │                 │  │  │ │                 │  │       │
+│  │ │   ┌─────────┐   │  │  │ │   ┌─────────┐   │  │  │ │                 │  │       │
+│  │ │   │   RDS   │   │  │  │ │   │   RDS   │   │  │  │ │                 │  │       │
+│  │ │   │ Primary │   │  │  │ │   │ Standby │   │  │  │ │                 │  │       │
+│  │ │   └─────────┘   │  │  │ │   └─────────┘   │  │  │ │                 │  │       │
+│  │ └─────────────────┘  │  │ └─────────────────┘  │  │ └─────────────────┘  │       │
+│  └────────────────────┘  └────────────────────┘  └────────────────────┘       │
+│                                                                                 │
+│  ┌───────────────────┐                                                         │
+│  │ Internet Gateway  │  ◄──────────────── Internet Traffic                    │
+│  └───────────────────┘                                                         │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-        subgraph "Availability Zone 2"
-            PubSub2["Public Subnet<br/>10.0.2.0/24<br/>ALB"]
-            PrivSub2["Private Subnet<br/>10.0.12.0/24<br/>K8s Workers"]
-            DBSub2["Database Subnet<br/>10.0.22.0/24<br/>RDS Standby"]
-        end
-
-        subgraph "Availability Zone 3"
-            PubSub3["Public Subnet<br/>10.0.3.0/24<br/>ALB"]
-            PrivSub3["Private Subnet<br/>10.0.13.0/24<br/>K8s Workers"]
-            DBSub3["Database Subnet<br/>10.0.23.0/24"]
-        end
-
-        NAT1["NAT Gateway<br/>AZ1"]
-        NAT2["NAT Gateway<br/>AZ2"]
-        NAT3["NAT Gateway<br/>AZ3"]
-
-        IGW["Internet Gateway"]
-    end
-
-    Internet["Internet"] --> IGW
-    IGW --> PubSub1
-    IGW --> PubSub2
-    IGW --> PubSub3
-
-    PubSub1 --> NAT1
-    PubSub2 --> NAT2
-    PubSub3 --> NAT3
-
-    PrivSub1 --> NAT1
-    PrivSub2 --> NAT2
-    PrivSub3 --> NAT3
-
-    PrivSub1 -.->|Private Connection| DBSub1
-    PrivSub2 -.->|Private Connection| DBSub2
-    PrivSub3 -.->|Private Connection| DBSub3
-
-    style PubSub1 fill:#e1f5ff
-    style PubSub2 fill:#e1f5ff
-    style PubSub3 fill:#e1f5ff
-    style PrivSub1 fill:#fff4e1
-    style PrivSub2 fill:#fff4e1
-    style PrivSub3 fill:#fff4e1
-    style DBSub1 fill:#ffe1e1
-    style DBSub2 fill:#ffe1e1
-    style DBSub3 fill:#ffe1e1
+Legend:
+  Public Subnets:   Internet-facing (ALB, NAT Gateway)
+  Private Subnets:  No direct internet (K8s worker nodes)
+  Database Subnets: Isolated, worker nodes only
+  NAT Gateway:      Enables outbound internet for private subnets
 ```
 
 ### Database Layer
@@ -261,62 +257,81 @@ Isolate production workloads from administrative tooling using separate Kubernet
 
 **Two-Cluster Architecture:**
 
-```mermaid
-graph TB
-    subgraph "Admin Cluster - Restricted Access"
-        ArgoCD["ArgoCD<br/>GitOps Controller"]
-        Prometheus["Prometheus<br/>Metrics"]
-        Grafana["Grafana<br/>Dashboards"]
-        AdminALB["Admin ALB<br/>VPN/Bastion Only"]
-    end
+```
+                                    ┌─────────────────────────────────────┐
+                                    │         ADMIN CLUSTER               │
+                                    │    (Restricted VPN/Bastion Only)    │
+                                    │                                     │
+     ┌──────────────┐              │  ┌──────────┐   ┌───────────────┐  │
+     │     VPN      │──────────────┼─►│  ArgoCD  │   │  Prometheus   │  │
+     │   /Bastion   │              │  │ (GitOps) │   │  (Metrics)    │  │
+     └──────────────┘              │  └────┬─────┘   └───────┬───────┘  │
+                                    │       │                 │          │
+                                    │       │Deploy           │Scrape    │
+                                    │       │                 │Metrics   │
+                                    │  ┌────▼─────────────────▼───────┐  │
+                                    │  │         Grafana               │  │
+                                    │  │      (Dashboards)             │  │
+                                    │  └───────────────────────────────┘  │
+                                    └──────────┬──────────────────────────┘
+                                               │
+                                               │Deploy Apps
+                                               ▼
+┌───────────────┐              ┌────────────────────────────────────────────────┐
+│   Internet    │              │          PRODUCTION CLUSTER                    │
+│   Clients     │              │       (Customer-Facing Traffic)                │
+└───────┬───────┘              │                                                │
+        │                      │  ┌──────────────────────────────────────────┐ │
+        │                      │  │  Security & Policy Enforcement           │ │
+        │                      │  │                                          │ │
+        ▼                      │  │  ┌─────────┐  ┌────────┐  ┌──────────┐ │ │
+ ┌────────────┐               │  │  │ Kyverno │  │ Falco  │  │  Trivy   │ │ │
+ │    WAF     │               │  │  │(Policies│  │(Runtime│  │ Operator │ │ │
+ │  DDoS      │               │  │  │Enforce) │  │Security│  │  (Vuln   │ │ │
+ │Protection  │               │  │  └────┬────┘  └───┬────┘  └────┬─────┘ │ │
+ └─────┬──────┘               │  └───────┼───────────┼────────────┼───────┘ │
+       │                      │          │           │            │          │
+       ▼                      │          ▼           ▼            ▼          │
+ ┌────────────┐               │  ┌──────────────────────────────────────────┐ │
+ │Customer ALB│───────────────┼─►│         Istio Gateway (mTLS)             │ │
+ │(TLS Term.) │               │  └──────────────┬───────────────────────────┘ │
+ └────────────┘               │                 │                             │
+                              │                 │                             │
+                              │     ┌───────────┴──────────┐                  │
+                              │     │                      │                  │
+                              │     ▼                      ▼                  │
+                              │  ┌────────────┐      ┌────────────┐          │
+                              │  │ Namespace: │      │ Namespace: │          │
+                              │  │  prod-api  │◄────►│  prod-web  │          │
+                              │  │            │ mTLS │            │          │
+                              │  │ ┌────────┐ │      │ ┌────────┐ │          │
+                              │  │ │App Pods│ │      │ │App Pods│ │          │
+                              │  │ │Non-root│ │      │ │Non-root│ │          │
+                              │  │ │Read-only│ │      │ │Read-only│ │          │
+                              │  │ └───┬────┘ │      │ └───┬────┘ │          │
+                              │  └─────┼──────┘      └─────┼──────┘          │
+                              └────────┼─────────────────── ┼─────────────────┘
+                                       │                    │
+                                       │   Private VPC      │
+                                       │   Connection       │
+                                       ▼                    ▼
+                              ┌─────────────────────────────────┐
+                              │     DATABASE LAYER              │
+                              │   (Private Subnet Only)         │
+                              │                                 │
+                              │  ┌──────────┐  ┌──────────┐    │
+                              │  │   RDS    │◄─┤   RDS    │    │
+                              │  │ Primary  │  │ Standby  │    │
+                              │  │(Multi-AZ)│  │(Multi-AZ)│    │
+                              │  └──────────┘  └──────────┘    │
+                              │   Encrypted    Auto-Failover   │
+                              └─────────────────────────────────┘
 
-    subgraph "Production Cluster - Customer Traffic"
-        CustomerALB["Customer ALB<br/>+ WAF"]
-        Istio["Istio Gateway<br/>mTLS"]
-        App1["App Pods<br/>Namespace: prod-api"]
-        App2["App Pods<br/>Namespace: prod-web"]
-        Kyverno["Kyverno<br/>Policy Enforcement"]
-        Falco["Falco<br/>Runtime Security"]
-        TrivyOp["Trivy Operator<br/>Vuln Scanning"]
-    end
-
-    subgraph "Database Layer - Private Subnet"
-        RDS["Multi-AZ RDS<br/>PostgreSQL/MySQL"]
-    end
-
-    VPN["VPN/Bastion"] --> AdminALB
-    AdminALB --> ArgoCD
-    AdminALB --> Grafana
-    ArgoCD -->|Deploy| App1
-    ArgoCD -->|Deploy| App2
-    Prometheus -->|Scrape Metrics| App1
-    Prometheus -->|Scrape Metrics| App2
-    Grafana -->|Query| Prometheus
-
-    Internet["Internet"] --> CustomerALB
-    CustomerALB --> Istio
-    Istio --> App1
-    Istio --> App2
-
-    App1 -.->|Private| RDS
-    App2 -.->|Private| RDS
-
-    Kyverno -.->|Enforce Policies| App1
-    Kyverno -.->|Enforce Policies| App2
-    Falco -.->|Monitor| App1
-    Falco -.->|Monitor| App2
-    TrivyOp -.->|Scan| App1
-    TrivyOp -.->|Scan| App2
-
-    style ArgoCD fill:#e1f5ff
-    style Prometheus fill:#e1f5ff
-    style Grafana fill:#e1f5ff
-    style App1 fill:#e8f5e9
-    style App2 fill:#e8f5e9
-    style RDS fill:#ffe1e1
-    style Kyverno fill:#fff4e1
-    style Falco fill:#fff4e1
-    style TrivyOp fill:#fff4e1
+Key Benefits of Two-Cluster Design:
+  ✓ Production compromise doesn't affect deployment/observability
+  ✓ Production pods cannot access ArgoCD to modify infrastructure
+  ✓ Clear separation of duties for compliance (SOC2, ISO 27001)
+  ✓ Limits blast radius - attackers can't pivot to admin tools
 ```
 
 ### Two-Cluster Design (Recommended)
@@ -355,49 +370,87 @@ Use Kubernetes namespaces with strict NetworkPolicies if cost is primary constra
 
 **Recommendation**: Use separate clusters for production - minimal overhead with managed Kubernetes, significant security benefit.
 
-**Network Policy Isolation Example:**
+**Network Policy Isolation (Default Deny + Explicit Allow):**
 
-```mermaid
-graph TB
-    subgraph "Cluster with Network Policies"
-        subgraph "Namespace: istio-system"
-            Gateway["Istio Gateway<br/>Ingress Point"]
-        end
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                      KUBERNETES CLUSTER                                   │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │              Namespace: istio-system                                │ │
+│  │                                                                     │ │
+│  │              ┌──────────────────────────┐                          │ │
+│  │              │   Istio Ingress Gateway  │                          │ │
+│  │              │   (Entry Point)          │                          │ │
+│  │              └────────────┬─────────────┘                          │ │
+│  └───────────────────────────┼──────────────────────────────────────── │ │
+│                               │                                         │
+│                               │ Allowed by NetworkPolicy                │
+│                               │ (allow-from-gateway)                    │
+│                               │                                         │
+│  ┌────────────────────────────▼────────────────────────────────────────┐ │
+│  │              Namespace: production                                  │ │
+│  │              NetworkPolicy: default-deny-ingress ✓                  │ │
+│  │                                                                     │ │
+│  │   ┌─────────────────┐                    ┌─────────────────┐      │ │
+│  │   │  API Service    │        BLOCKED     │ Worker Service  │      │ │
+│  │   │  (app=api)      │◄──────   X   ─────┤ (app=worker)    │      │ │
+│  │   │                 │                    │                 │      │ │
+│  │   │ • Port: 8080    │◄──────────────────►│ • Port: 9000    │      │ │
+│  │   │ • Receives from │      Allowed by    │ • Internal only │      │ │
+│  │   │   Istio Gateway │   NetworkPolicy    │   processing    │      │ │
+│  │   └─────────┬───────┘   (pod-to-pod)     └─────────────────┘      │ │
+│  │             │                                                      │ │
+│  └─────────────┼──────────────────────────────────────────────────────┘ │
+│                │                                                        │
+│                │ Allowed by                                             │
+│                │ NetworkPolicy                                          │
+│                │ (monitoring)                                           │
+│                │                                                        │
+│  ┌─────────────▼──────────────────────────────────────────────────────┐ │
+│  │              Namespace: monitoring                                  │ │
+│  │              NetworkPolicy: allow-scraping ✓                        │ │
+│  │                                                                     │ │
+│  │              ┌──────────────────────────┐                          │ │
+│  │              │      Prometheus          │                          │ │
+│  │              │  (Metrics Collection)    │                          │ │
+│  │              └──────────┬───────────────┘                          │ │
+│  │                         │                                           │ │
+│  │                         │ Allowed to scrape                         │ │
+│  │                         │ (all namespaces)                          │ │
+│  └─────────────────────────┼───────────────────────────────────────────┘ │
+│                            │                                             │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │              Namespace: admin                                       │ │
+│  │              NetworkPolicy: default-deny-all ✓                      │ │
+│  │                                                                     │ │
+│  │              ┌──────────────────────────┐                          │ │
+│  │              │       ArgoCD             │                          │ │
+│  │              │  (Admin Tools)           │                          │ │
+│  │              │                          │                          │ │
+│  │              │  BLOCKED from all        │                          │ │
+│  │              │  production namespaces   │                          │ │
+│  │              └──────────────────────────┘                          │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                           │
+│  Traffic Blocked by Default:                                             │
+│  • production → admin                 ✗ DENIED                           │
+│  • production → monitoring            ✗ DENIED (except scraping)         │
+│  • worker → api (without policy)      ✗ DENIED                           │
+│  • External → admin                   ✗ DENIED                           │
+│                                                                           │
+│  Traffic Explicitly Allowed:                                             │
+│  • istio-system → production/api      ✓ ALLOWED                          │
+│  • monitoring → all (metrics only)    ✓ ALLOWED                          │
+│  • production/api → production/worker ✓ ALLOWED (if configured)          │
+└───────────────────────────────────────────────────────────────────────────┘
 
-        subgraph "Namespace: production"
-            API["API Service<br/>app=api"]
-            Worker["Worker Service<br/>app=worker"]
-            NP1["NetworkPolicy:<br/>default-deny-ingress"]
-            NP2["NetworkPolicy:<br/>allow-from-gateway"]
-        end
-
-        subgraph "Namespace: admin"
-            ArgoCD2["ArgoCD"]
-            NP3["NetworkPolicy:<br/>default-deny-all"]
-        end
-
-        subgraph "Namespace: monitoring"
-            Prometheus2["Prometheus"]
-            NP4["NetworkPolicy:<br/>allow-scraping"]
-        end
-    end
-
-    Internet2["Internet"] -->|Allowed| Gateway
-    Gateway -->|Allowed by NP2| API
-    API -->|Blocked by NP1| Worker
-    Gateway -.->|Blocked| ArgoCD2
-    Prometheus2 -->|Allowed by NP4| API
-    Prometheus2 -->|Allowed by NP4| Worker
-
-    style Gateway fill:#e1f5ff
-    style API fill:#e8f5e9
-    style Worker fill:#e8f5e9
-    style ArgoCD2 fill:#ffe1e1
-    style Prometheus2 fill:#fff4e1
-    style NP1 fill:#fff9e1
-    style NP2 fill:#fff9e1
-    style NP3 fill:#fff9e1
-    style NP4 fill:#fff9e1
+Default Deny Approach:
+  1. Apply default-deny NetworkPolicy to each namespace
+  2. Explicitly allow only required traffic
+  3. Test with: kubectl exec -it pod -- curl http://service.namespace.svc.cluster.local
+  4. Verify blocked traffic fails as expected
 ```
 
 ### Network Policy Implementation
@@ -446,39 +499,102 @@ Apply default-deny first, then explicitly allow required traffic. Test with: `ku
 
 Configure load balancers, WAF, and service mesh to secure and route traffic to appropriate services.
 
-**Production Traffic Flow:**
+**Production Traffic Flow (Defense in Depth):**
 
-```mermaid
-graph LR
-    Client["Client<br/>(Browser/API)"] --> CloudFlare["Edge/CDN<br/>Cloudflare/CloudFront"]
-    CloudFlare --> WAF["WAF<br/>DDoS Protection<br/>Rate Limiting"]
-    WAF --> ALB["Application<br/>Load Balancer<br/>TLS Termination"]
-    ALB --> SG1["Security Group<br/>Allow: ALB only"]
-    SG1 --> Istio["Istio Ingress<br/>Gateway<br/>mTLS Enabled"]
-    Istio --> NP["Network Policy<br/>Allow from<br/>istio-system"]
-    NP --> Pod1["Pod: api-service<br/>Non-root user<br/>Read-only FS"]
-    NP --> Pod2["Pod: web-service<br/>Non-root user<br/>Read-only FS"]
+```
+┌──────────────┐
+│    Client    │  Browser / Mobile App / API Consumer
+│ (Internet)   │
+└──────┬───────┘
+       │ HTTPS
+       ▼
+┌──────────────────────────┐
+│    Edge Layer (CDN)      │  Cloudflare / CloudFront / Cloud CDN
+│  ┌────────────────────┐  │  • DDoS Protection
+│  │  WAF + Rate Limit  │  │  • Global Caching
+│  └────────┬───────────┘  │  • TLS 1.3
+└───────────┼──────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    VPC - Private Network                    │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │            Application Load Balancer (ALB)              │ │
+│  │  • TLS Termination                                     │ │
+│  │  • Health Checks                                       │ │
+│  │  • Multi-AZ Distribution                               │ │
+│  └──────────────────────┬─────────────────────────────────┘ │
+│                         │                                    │
+│                         ▼                                    │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │           Security Group: Allow ALB Only               │ │
+│  └──────────────────────┬─────────────────────────────────┘ │
+│                         │                                    │
+│  ┌──────────────────────▼─────────────────────────────────┐ │
+│  │              KUBERNETES CLUSTER                        │ │
+│  │                                                         │ │
+│  │  ┌──────────────────────────────────────────────────┐  │ │
+│  │  │         Istio Ingress Gateway                    │  │ │
+│  │  │  • mTLS Between Services                         │  │ │
+│  │  │  • Traffic Routing                               │  │ │
+│  │  │  • Observability (Metrics/Traces)                │  │ │
+│  │  └───────────────────┬──────────────────────────────┘  │ │
+│  │                      │                                  │ │
+│  │  ┌───────────────────┼──────────────────────────────┐  │ │
+│  │  │  Network Policy: Allow from istio-system only    │  │ │
+│  │  └───────────────────┬──────────────────────────────┘  │ │
+│  │              ┌───────┴────────┐                         │ │
+│  │              │                │                         │ │
+│  │              ▼                ▼                         │ │
+│  │     ┌─────────────┐   ┌─────────────┐                  │ │
+│  │     │ Namespace:  │   │ Namespace:  │                  │ │
+│  │     │  prod-api   │   │  prod-web   │                  │ │
+│  │     │             │   │             │                  │ │
+│  │     │ ┌─────────┐ │   │ ┌─────────┐ │                  │ │
+│  │     │ │  Pod    │◄┼───┼►│  Pod    │ │                  │ │
+│  │     │ │         │ │mTLS│ │         │ │                  │ │
+│  │     │ │Non-root │ │   │ │Non-root │ │                  │ │
+│  │     │ │Read-only│ │   │ │Read-only│ │                  │ │
+│  │     │ │  FS     │ │   │ │  FS     │ │                  │ │
+│  │     │ └────┬────┘ │   │ └────┬────┘ │                  │ │
+│  │     └──────┼──────┘   └──────┼──────┘                  │ │
+│  │            │                  │                         │ │
+│  │  ┌─────────┼──────────────────┼─────────────────────┐  │ │
+│  │  │  Security Enforcement (Monitors All Pods)        │  │ │
+│  │  │                                                   │  │ │
+│  │  │  Kyverno        Falco          Trivy Operator    │  │ │
+│  │  │  (Policies)     (Runtime)      (Vuln Scan)       │  │ │
+│  │  └───────────────────────────────────────────────────┘  │ │
+│  └──────────────────┬───────────────┬──────────────────────┘ │
+│                     │               │                        │
+│  ┌──────────────────▼───────────────▼──────────────────────┐ │
+│  │    Security Group: Worker Nodes Only                    │ │
+│  └──────────────────┬──────────────────────────────────────┘ │
+│                     │                                        │
+│                     ▼                                        │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │            Database Subnet (Private)                   │ │
+│  │                                                         │ │
+│  │   ┌──────────────┐         ┌──────────────┐           │ │
+│  │   │     RDS      │  Sync   │     RDS      │           │ │
+│  │   │   Primary    │◄────────┤   Standby    │           │ │
+│  │   │  (Multi-AZ)  │         │  (Multi-AZ)  │           │ │
+│  │   │              │         │              │           │ │
+│  │   │  Encrypted   │         │ Auto-Failover│           │ │
+│  │   └──────────────┘         └──────────────┘           │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 
-    Pod1 --> SG2["Security Group<br/>Worker nodes only"]
-    Pod2 --> SG2
-    SG2 --> DB["RDS Database<br/>Private Subnet<br/>Multi-AZ<br/>Encrypted"]
-
-    Pod1 -.->|mTLS| Pod2
-
-    Kyverno["Kyverno"] -.->|Policy Check| Pod1
-    Kyverno -.->|Policy Check| Pod2
-    Falco["Falco"] -.->|Runtime Monitor| Pod1
-    Falco -.->|Runtime Monitor| Pod2
-
-    style CloudFlare fill:#e1f5ff
-    style WAF fill:#e1f5ff
-    style ALB fill:#e1f5ff
-    style Istio fill:#fff4e1
-    style Pod1 fill:#e8f5e9
-    style Pod2 fill:#e8f5e9
-    style DB fill:#ffe1e1
-    style Kyverno fill:#fff9e1
-    style Falco fill:#fff9e1
+Security Layers (Defense in Depth):
+  Layer 1: Edge WAF & DDoS Protection
+  Layer 2: ALB with TLS Termination
+  Layer 3: Security Groups (Network Firewall)
+  Layer 4: Istio mTLS (Service-to-Service Encryption)
+  Layer 5: Network Policies (K8s Traffic Control)
+  Layer 6: Pod Security (Non-root, Read-only FS)
+  Layer 7: Runtime Security (Kyverno, Falco, Trivy)
+  Layer 8: Database Isolation (Private Subnet, Encryption)
 ```
 
 ### Load Balancer Architecture
@@ -1081,51 +1197,87 @@ Complete environment recovery through infrastructure as code, database backups, 
 
 **Disaster Recovery Architecture:**
 
-```mermaid
-graph TB
-    subgraph "Source of Truth"
-        Git["Git Repository<br/>Application Manifests<br/>Helm Charts"]
-        TF["Terraform Code<br/>Infrastructure<br/>S3/GCS Backend"]
-        Snapshots["Database Snapshots<br/>Automated Daily<br/>Cross-Region Copy"]
-    end
+```
+SOURCE OF TRUTH (Version Controlled)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────────────┐   │
+│  │ Git Repository   │  │ Terraform State  │  │ Database Snapshots     │   │
+│  │                  │  │                  │  │                        │   │
+│  │ • K8s Manifests  │  │ • S3/GCS Backend │  │ • Automated Daily      │   │
+│  │ • Helm Charts    │  │ • Infrastructure │  │ • Cross-Region Copy    │   │
+│  │ • ArgoCD Apps    │  │   as Code        │  │ • Point-in-time (PITR) │   │
+│  └──────────────────┘  └──────────────────┘  └────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │                        │                         │
+         │                        │                         │
+         ▼                        ▼                         ▼
+RECOVERY PROCESS (RTO: 60-120 minutes, RPO: 5 minutes)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  Step 1: Infrastructure (30-60 min)     Step 2: Database (15-30 min)      │
+│  ┌────────────────────────────┐         ┌─────────────────────────────┐   │
+│  │  terraform apply           │         │  Restore from Snapshot      │   │
+│  │                            │         │                             │   │
+│  │  Creates:                  │         │  • Select snapshot          │   │
+│  │  • VPC & Subnets          │         │  • Restore to new instance  │   │
+│  │  • Kubernetes Clusters     │         │  • Multi-AZ configuration   │   │
+│  │  • Load Balancers          │         │  • Update connection string │   │
+│  │  • Security Groups         │         └─────────────────────────────┘   │
+│  └────────────────────────────┘                                            │
+│                                                                             │
+│  Step 3: ArgoCD (5 min)                 Step 4: Applications (10-20 min)  │
+│  ┌────────────────────────────┐         ┌─────────────────────────────┐   │
+│  │  kubectl apply argocd.yaml │         │  ArgoCD Auto-Sync           │   │
+│  │                            │         │                             │   │
+│  │  Deploy ArgoCD to:         │         │  • Reads Git repository     │   │
+│  │  • Admin cluster           │──┐      │  • Deploys all apps         │   │
+│  │  • Point to Git repo       │  │      │  • Applies manifests        │   │
+│  └────────────────────────────┘  │      │  • Cluster matches Git      │   │
+│                                   └─────►└─────────────────────────────┘   │
+│                                                                             │
+│  Step 5: DNS Update (5 min + TTL)                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐   │
+│  │  Update DNS records to point to new ALB endpoint                  │   │
+│  └────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+NEW PRODUCTION ENVIRONMENT
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                        New VPC (Multi-AZ)                            │  │
+│  │                                                                      │  │
+│  │  ┌─────────────────────┐              ┌─────────────────────┐      │  │
+│  │  │  Admin Cluster      │              │  Production Cluster │      │  │
+│  │  │                     │              │                     │      │  │
+│  │  │  • ArgoCD           │──────────────┤  • All Apps Running │      │  │
+│  │  │  • Prometheus       │   Deploys    │  • Security Enabled │      │  │
+│  │  │  • Grafana          │              │  • Policies Active  │      │  │
+│  │  └─────────────────────┘              └─────────┬───────────┘      │  │
+│  │                                                  │                  │  │
+│  │  ┌───────────────────────────────────────────────┼──────────────┐  │  │
+│  │  │            New ALB (Customer Traffic)         │              │  │  │
+│  │  └───────────────────────────────────────────────┼──────────────┘  │  │
+│  │                                                   │                 │  │
+│  │  ┌────────────────────────────────────────────────▼─────────────┐  │  │
+│  │  │                New RDS Instance                              │  │  │
+│  │  │  • Restored from snapshot                                    │  │  │
+│  │  │  • Multi-AZ enabled                                          │  │  │
+│  │  │  • Data up to last snapshot + PITR                           │  │  │
+│  │  └──────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  Status: Production environment fully operational                          │
+│  Data Loss: ~5 minutes (last database transaction to snapshot)             │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-    subgraph "Recovery Process"
-        Step1["1. Terraform Apply<br/>New VPC/Clusters<br/>30-60 min"]
-        Step2["2. Restore Database<br/>From Snapshot<br/>15-30 min"]
-        Step3["3. Deploy ArgoCD<br/>To Admin Cluster<br/>5 min"]
-        Step4["4. ArgoCD Sync<br/>All Applications<br/>10-20 min"]
-        Step5["5. Update DNS<br/>Point to New ALB<br/>5 min + TTL"]
-    end
-
-    subgraph "New Environment"
-        NewVPC["New VPC<br/>Multi-AZ"]
-        NewClusters["New Clusters<br/>Admin + Prod"]
-        NewDB["New RDS<br/>Restored Data"]
-        NewALB["New ALB<br/>With WAF"]
-    end
-
-    TF --> Step1
-    Snapshots --> Step2
-    Step1 --> NewVPC
-    Step1 --> NewClusters
-    Step2 --> NewDB
-    Step1 --> NewALB
-
-    Step3 --> NewClusters
-    Git --> Step4
-    Step4 --> NewClusters
-    Step5 --> NewALB
-
-    RTO["RTO: 60-120 minutes<br/>RPO: 5 minutes"]
-
-    style Git fill:#e1f5ff
-    style TF fill:#e1f5ff
-    style Snapshots fill:#ffe1e1
-    style NewVPC fill:#e8f5e9
-    style NewClusters fill:#e8f5e9
-    style NewDB fill:#ffe1e1
-    style NewALB fill:#e8f5e9
-    style RTO fill:#fff4e1
+Testing & Validation:
+  • Quarterly DR drills in non-production
+  • Document lessons learned
+  • Update procedures based on findings
+  • Verify complete application state restoration
 ```
 
 ### Recovery Strategy
