@@ -237,6 +237,10 @@ Test that security hardening is properly applied:
 
 - **Non-root enforcement**: Verify UID is not 0 using `id -u`
 
+  ```bash
+  docker run --rm --entrypoint id "$IMAGE_NAME" -u | grep -v "^0$"
+  ```
+
 - **No secrets in environment**: Scan environment variables for patterns like `password`, `key`, `token`
 
   ```bash
