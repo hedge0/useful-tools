@@ -32,7 +32,7 @@ A cloud-agnostic guide for building secure, verifiable container images with SLS
    - [Tools and Projects](#tools-and-projects)
    - [Standards and Specifications](#standards-and-specifications)
 
-## Overview
+## 1. Overview
 
 This guide outlines a production-grade container image build pipeline that achieves SLSA (Supply-chain Levels for Software Artifacts) Level 3 compliance. The pipeline is cloud-agnostic and works with any container registry that supports signed images (such as AWS ECR, Google GCR/Artifact Registry, Azure ACR, and Harbor) and object storage provider (S3, GCS, Azure Blob Storage).
 
@@ -46,7 +46,7 @@ This guide outlines a production-grade container image build pipeline that achie
 - **Provenance**: Complete, unforgeable build provenance
 - **Non-falsifiable**: Strong protections against tampering
 
-## Prerequisites
+## 2. Prerequisites
 
 ### Required Tools
 
@@ -98,7 +98,7 @@ All sensitive credentials must be stored in external vault services:
 - **Object storage credentials**: Access key, secret key, bucket name, region
 - **Logging service credentials**: API keys, service account credentials (if applicable)
 
-## Pipeline Stages
+## 3. Pipeline Stages
 
 ### Stage 1: Base Image and Application Layer Preparation
 
@@ -284,7 +284,7 @@ Generate SLSA provenance, SBOMs, vulnerability scan reports, sign all artifacts,
 
 **Logging**: Image signing started/completed, registry authentication successful, image pushed (registry URL, digest), attestation attached, total stage time
 
-## Post-Pipeline Operations
+## 4. Post-Pipeline Operations
 
 ### Continuous Vulnerability Monitoring
 
@@ -334,7 +334,7 @@ Generate SLSA provenance, SBOMs, vulnerability scan reports, sign all artifacts,
 - **[Falco](https://github.com/falcosecurity/falco)**: Runtime threat detection for unusual container behavior
 - **Pod Security Standards**: Enforce baseline/restricted pod security standards
 
-## Attack Scenarios Prevented
+## 5. Attack Scenarios Prevented
 
 This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the software build and delivery process.
 
@@ -401,7 +401,7 @@ This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the s
 - Attack: New CVEs disclosed after image deployment creating exploitable vulnerabilities
 - Mitigated by: Daily automated scanning of published images, automated rebuilds when patchable vulnerabilities found, Copacetic re-patching in rebuild, GitOps deployment via ArgoCD
 
-## References
+## 6. References
 
 ### SLSA Framework
 

@@ -64,7 +64,7 @@ A cloud-agnostic guide for building production-ready Kubernetes clusters with de
     - [Managed Kubernetes Services](#managed-kubernetes-services)
     - [Standards & Documentation](#standards--documentation)
 
-## Overview
+## 1. Overview
 
 This guide outlines a production-grade Kubernetes architecture that prioritizes security, reliability, and operational excellence. The patterns are cloud-agnostic and work with managed Kubernetes services (AWS EKS, GCP GKE, Azure AKS) and their respective cloud-native services for networking, databases, secrets management, and observability.
 
@@ -76,7 +76,7 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 - **Infrastructure as Code**: Versioned, reproducible infrastructure with Terraform and ArgoCD
 - **Separation of Concerns**: Isolated clusters for production workloads vs administrative tooling
 
-## Prerequisites
+## 2. Prerequisites
 
 ### Required Tools
 
@@ -134,7 +134,7 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 - GCP Cloud Load Balancing + Cloud Armor
 - Azure Application Gateway + Azure WAF
 
-## Network Architecture & Database Layer
+## 3. Network Architecture & Database Layer
 
 Design secure network topology with proper isolation and managed databases for production resilience.
 
@@ -197,7 +197,7 @@ Never run databases in Kubernetes for production. Use AWS RDS, GCP Cloud SQL, or
 - Pods retrieve from Kubernetes secrets as environment variables
 - Cloud-native solutions are simpler and more secure than third-party operators
 
-## Cluster Architecture & Separation
+## 4. Cluster Architecture & Separation
 
 Isolate production workloads from administrative tooling using separate Kubernetes clusters.
 
@@ -279,7 +279,7 @@ spec:
 
 Apply default-deny first, then explicitly allow required traffic. Test with: `kubectl exec -it pod-name -- curl http://service.namespace.svc.cluster.local`
 
-## Ingress & Traffic Management
+## 5. Ingress & Traffic Management
 
 Configure load balancers, WAF, and service mesh to secure and route traffic to appropriate services.
 
@@ -329,7 +329,7 @@ Deploy Web Application Firewall at load balancer to filter malicious traffic:
 - Service-to-service metrics (latency, error rates)
 - Visualize traffic flow with Kiali dashboard
 
-## Policy Enforcement with Kyverno
+## 6. Policy Enforcement with Kyverno
 
 Enforce security policies at deployment time to prevent misconfigurations and ensure compliance.
 
@@ -452,7 +452,7 @@ spec:
 
 **Deployment workflow**: Kyverno runs as admission controller, validates policies before pods are created, blocks non-compliant workloads automatically.
 
-## Continuous Vulnerability & Threat Detection
+## 7. Continuous Vulnerability & Threat Detection
 
 Monitor running workloads for vulnerabilities and detect runtime threats in real-time.
 
@@ -528,7 +528,7 @@ Deploy [Falco](https://github.com/falcosecurity/falco) for real-time threat dete
 - Configure severity levels (info, warning, critical)
 - Alert on critical events only (reduce noise)
 
-## Secrets Management
+## 8. Secrets Management
 
 Store secrets in external vault services and inject them into Kubernetes pods securely with modern lifecycle management practices.
 
@@ -581,7 +581,7 @@ Store secrets in external vault services and inject them into Kubernetes pods se
 - Implement proper access controls and audit logging
 - Monitor for unauthorized access attempts
 
-## Infrastructure as Code & GitOps
+## 9. Infrastructure as Code & GitOps
 
 Manage infrastructure and applications as versioned code for reproducibility and automation.
 
@@ -632,7 +632,7 @@ Deploy ArgoCD in admin cluster to manage application deployments to production c
 - Require signed Git commits for production deployments
 - Admin access restricted to VPN/bastion
 
-## Observability & Logging
+## 10. Observability & Logging
 
 Collect, aggregate, and export logs and metrics for monitoring, debugging, and compliance.
 
@@ -698,7 +698,7 @@ Deploy in admin cluster for metrics collection and visualization.
 3. Upload to cold storage with lifecycle policies
 4. Delete from hot storage
 
-## Identity & Access Management
+## 11. Identity & Access Management
 
 Implement least-privilege access control through Kubernetes RBAC and cloud provider IAM integration to minimize blast radius of compromised credentials.
 
@@ -877,7 +877,7 @@ kubectl auth can-i get secrets \
 # Azure: Activity logs for managed identity auth
 ```
 
-## Disaster Recovery
+## 12. Disaster Recovery
 
 Complete environment recovery through infrastructure as code, database backups, and GitOps.
 
@@ -930,7 +930,7 @@ Complete disaster recovery steps:
 
 **Key principle**: Infrastructure as code + GitOps + automated database backups = rapid, reproducible disaster recovery.
 
-## Incident Response
+## 13. Incident Response
 
 Respond to security incidents in Kubernetes with structured processes for containment and recovery.
 
@@ -992,7 +992,7 @@ spec:
 - Update Falco rules to detect similar behaviors earlier
 - Notify per compliance requirements (GDPR: 72 hours, HIPAA: 60 days)
 
-## Attack Scenarios Prevented
+## 14. Attack Scenarios Prevented
 
 This guide's security controls prevent real-world Kubernetes attacks commonly seen in production environments.
 
@@ -1054,7 +1054,7 @@ This guide's security controls prevent real-world Kubernetes attacks commonly se
 - Attack: Modified GitOps repository to deploy malicious workloads or steal secrets
 - Mitigated by: ArgoCD in separate admin cluster, admin access restricted to VPN/bastion, signed Git commits required, RBAC limiting deployment permissions
 
-## References
+## 15. References
 
 ### Infrastructure & Orchestration
 

@@ -84,7 +84,7 @@ A cloud-agnostic guide for building production-ready APIs with a practical blend
     - [Supply Chain & Dependencies](#supply-chain--dependencies)
 17. [References](#references)
 
-## Overview
+## 1. Overview
 
 This guide outlines a production-grade API design approach that balances security, performance, and maintainability. The patterns are cloud-agnostic and work with major cloud providers (AWS, GCP, Azure) and their respective services for serverless functions, container orchestration, secrets management, and logging.
 
@@ -95,7 +95,7 @@ This guide outlines a production-grade API design approach that balances securit
 - **Cloud Agnostic**: Works across AWS, GCP, Azure with equivalent services
 - **Production Ready**: Battle-tested patterns from real-world deployments
 
-## Prerequisites
+## 2. Prerequisites
 
 ### Required Tools
 
@@ -154,7 +154,7 @@ This guide outlines a production-grade API design approach that balances securit
 - GCP Firestore
 - Azure Cosmos DB
 
-## Architecture Patterns
+## 3. Architecture Patterns
 
 ### Serverless vs Containers/VMs
 
@@ -248,7 +248,7 @@ Use containers/VMs when:
 - With SnapStart (2025): Reduces to ~200-400ms
 - Only use in containers/VMs or with SnapStart/GraalVM native images
 
-## Application Security (Pre-Deployment)
+## 4. Application Security (Pre-Deployment)
 
 Secure your codebase before deployment using automated security tools in CI/CD pipeline.
 
@@ -316,7 +316,7 @@ Use [pre-commit](https://pre-commit.com/) framework to run TruffleHog before com
 - ✓ All tests pass
 - ✓ Branch protection enforced
 
-## Edge Security Layer
+## 5. Edge Security Layer
 
 Deploy WAF and DDoS protection at the edge to filter malicious traffic before it reaches your API. Never expose origin servers directly to the internet.
 
@@ -371,7 +371,7 @@ Implement aggressive catch-all rate limiting for DDoS mitigation:
 
 Edge rate limiting should be basic and aggressive. Fine-grained, business-logic-aware rate limiting happens at application layer.
 
-## Authentication & Access Control
+## 6. Authentication & Access Control
 
 Secure API access through proper authentication, authorization, and cross-origin resource sharing.
 
@@ -593,7 +593,7 @@ async function checkBlacklist(req, res, next) {
 
 Combine these patterns for defense-in-depth: short-lived access tokens + refresh rotation + MFA + session limits + blacklist capability.
 
-## Data Security & Input Validation
+## 7. Data Security & Input Validation
 
 Protect sensitive data at rest and prevent injection attacks through comprehensive validation and sanitization.
 
@@ -848,7 +848,7 @@ Prevent injection attacks through proper input handling:
 - Enforce length limits
 - Reject null bytes and control characters
 
-## Rate Limiting & Throttling
+## 8. Rate Limiting & Throttling
 
 Implement two-layer rate limiting: basic protection at edge, sophisticated business logic at application layer.
 
@@ -918,7 +918,7 @@ Return **429 Too Many Requests** with retry information:
 - Python: [slowapi](https://github.com/laurentS/slowapi), [flask-limiter](https://github.com/alisaifee/flask-limiter)
 - Go: [tollbooth](https://github.com/didip/tollbooth), [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate)
 
-## Error Handling & Responses
+## 9. Error Handling & Responses
 
 Provide consistent, secure error responses to clients while logging detailed errors internally.
 
@@ -988,7 +988,7 @@ Generate unique request ID (UUID, ULID, KSUID) for every API call:
 - Return in error response body
 - Enables correlation between client errors and internal logs
 
-## Logging & Monitoring
+## 10. Logging & Monitoring
 
 Implement comprehensive logging and observability for security, debugging, and operational visibility.
 
@@ -1039,7 +1039,7 @@ Use request IDs to correlate logs across distributed systems:
 - Debug issues across service boundaries
 - Essential for troubleshooting in distributed architectures
 
-## Compliance & Retention
+## 11. Compliance & Retention
 
 Implement log retention policies to meet regulatory compliance requirements.
 
@@ -1093,7 +1093,7 @@ Archive logs in compressed, low-cost storage for regulatory compliance:
 - Store logs in same region as application for GDPR/data residency requirements
 - Use region-specific cold storage for compliance
 
-## Performance Optimization
+## 12. Performance Optimization
 
 Optimize API performance through batching, concurrency, cold start mitigation, and caching.
 
@@ -1201,7 +1201,7 @@ Beyond provisioned concurrency and scheduled invocations (see Architecture Patte
 - Lazy-load rarely-used dependencies
 - Pre-compile regex patterns, load configuration once
 
-## API Versioning
+## 13. API Versioning
 
 Implement versioning to manage breaking changes without disrupting existing clients.
 
@@ -1250,7 +1250,7 @@ Timeline and communication:
 3. v3 released
 4. v1 removed, v2 deprecated
 
-## Identity & Access Management
+## 14. Identity & Access Management
 
 Configure least-privilege access control for API infrastructure, service accounts, and secrets management to minimize blast radius of compromised credentials.
 
@@ -1438,7 +1438,7 @@ GCP Cloud SQL and Azure Database support similar IAM authentication.
 - Verify environment separation (dev can't access prod)
 - Check for overly permissive policies
 
-## Incident Response
+## 15. Incident Response
 
 Respond to security incidents quickly and effectively to minimize damage.
 
@@ -1487,7 +1487,7 @@ Respond to security incidents quickly and effectively to minimize damage.
 - Patch identified vulnerabilities and strengthen security controls
 - Notify affected users per compliance requirements (GDPR, CCPA, HIPAA)
 
-## Attack Scenarios Prevented
+## 16. Attack Scenarios Prevented
 
 This guide's security controls prevent real-world attacks commonly seen in production environments.
 
@@ -1544,7 +1544,7 @@ This guide's security controls prevent real-world attacks commonly seen in produ
 - Attack: Exploiting known vulnerabilities in outdated libraries
 - Mitigated by: Dependabot automated updates catching vulnerable packages, pre-deployment security scans, regular audits, timely patching
 
-## References
+## 17. References
 
 ### Security Tools
 
