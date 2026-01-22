@@ -550,6 +550,8 @@ function validateToken(token) {
 
 Implement secure authentication flows beyond basic JWT validation for production-grade systems.
 
+---
+
 **OAuth 2.1 / OIDC Flow** (recommended for APIs):
 
 ```
@@ -563,7 +565,11 @@ Implement secure authentication flows beyond basic JWT validation for production
 5. When access token expires, use refresh token to get new access token
 ```
 
-**Refresh Token Rotation** (prevents token theft):
+---
+
+**Refresh Token Rotation:**
+
+Prevents token theft by issuing new refresh tokens on each use (one-time use tokens).
 
 ```javascript
 // Token refresh endpoint
@@ -591,13 +597,19 @@ app.post("/auth/refresh", async (req, res) => {
 
 **Session Management Best Practices:**
 
-- **Token storage**: Store refresh tokens in httpOnly cookies (not localStorage - vulnerable to XSS)
-- **Session tracking**: Store active sessions in Redis with user ID, device info, IP, last activity
-- **Concurrent sessions**: Limit to 3-5 active sessions per user, revoke oldest when exceeded
-- **Session timeout**: Absolute timeout (7 days) + idle timeout (30 min of inactivity)
-- **Logout**: Revoke both access and refresh tokens, clear server-side session
+| Aspect                  | Implementation                                     | Security Benefit             |
+| ----------------------- | -------------------------------------------------- | ---------------------------- |
+| **Token storage**       | httpOnly cookies (not localStorage)                | Prevents XSS attacks         |
+| **Session tracking**    | Redis with user ID, device info, IP, last activity | Enables anomaly detection    |
+| **Concurrent sessions** | Limit 3-5 active sessions, revoke oldest           | Prevents credential sharing  |
+| **Session timeout**     | Absolute (7 days) + idle (30 min)                  | Reduces exposure window      |
+| **Logout**              | Revoke access + refresh tokens, clear server state | Complete session termination |
+
+---
 
 **Multi-Factor Authentication (MFA):**
+
+Require second factor after password validation for high-security scenarios.
 
 ```javascript
 // After password validation, require MFA
@@ -626,16 +638,28 @@ app.post("/auth/verify-mfa", async (req, res) => {
 });
 ```
 
+---
+
 **Passwordless Authentication (WebAuthn/FIDO2):**
 
-Modern alternative to passwords using hardware security keys or biometrics:
+Modern alternative to passwords using hardware security keys or biometrics.
+
+**Benefits:**
 
 - Phishing-resistant (cryptographic challenge-response)
 - No password storage/management required
 - Works with browser WebAuthn API or mobile biometrics
-- Implement using libraries: SimpleWebAuthn (Node.js), py_webauthn (Python)
+
+**Implementation:**
+
+- Node.js: `SimpleWebAuthn` library
+- Python: `py_webauthn` library
+
+---
 
 **Account Lockout & Brute Force Protection:**
+
+Prevent credential stuffing and brute force attacks with rate limiting on login attempts.
 
 ```javascript
 // Track failed login attempts (Redis)
@@ -654,9 +678,11 @@ if (attempts > 5) {
 await redis.del(`login:attempts:${email}`);
 ```
 
+---
+
 **Token Revocation:**
 
-Implement token blacklist for immediate logout (important for security incidents):
+Implement token blacklist for immediate logout during security incidents.
 
 ```javascript
 // Revoke token on logout
@@ -683,7 +709,17 @@ async function checkBlacklist(req, res, next) {
 }
 ```
 
-Combine these patterns for defense-in-depth: short-lived access tokens + refresh rotation + MFA + session limits + blacklist capability.
+---
+
+**Defense-in-Depth Strategy:**
+
+Combine multiple patterns for comprehensive authentication security:
+
+✓ Short-lived access tokens (15 min)  
+✓ Refresh token rotation (one-time use)  
+✓ Multi-factor authentication (TOTP/WebAuthn)  
+✓ Session limits (3-5 concurrent)  
+✓ Token blacklist capability (immediate revocation)
 
 ## 7. Data Security & Input Validation
 
@@ -1418,6 +1454,8 @@ az keyvault set-policy --name prod-keyvault --object-id PRINCIPAL_ID --secret-pe
 - Use IAM conditions (IP restrictions, time-based, request attributes)
 - Audit and remove unused permissions quarterly
 
+---
+
 **Lifecycle Management:**
 
 Prevent accumulation of unused, over-privileged, or compromised accounts through rigorous lifecycle controls.
@@ -1429,14 +1467,18 @@ Prevent accumulation of unused, over-privileged, or compromised accounts through
 3. Provision via Infrastructure as Code (Terraform) with auto-tagging
 4. Document in service account registry (owner, permissions, applications, last reviewed)
 
-**Rotation Procedures (Long-Lived Credentials):**
+---
 
-While workload identity/IAM roles use temporary credentials, service account keys require rotation:
+**Rotation Procedures:**
 
-- **Schedule**: Every 90 days (compliance: PCI-DSS, SOC2, ISO 27001)
-- **Immediate**: Suspected compromise, employee departure, key leakage
+While workload identity/IAM roles use temporary credentials, service account keys require rotation.
 
-**Zero-Downtime Rotation:**
+**Rotation Schedule:**
+
+- Every 90 days (compliance: PCI-DSS, SOC2, ISO 27001)
+- Immediate rotation: Suspected compromise, employee departure, key leakage
+
+**Zero-Downtime Rotation Steps:**
 
 1. Generate new key and deploy to 10% of instances (canary)
 2. Monitor for authentication errors
@@ -1444,15 +1486,19 @@ While workload identity/IAM roles use temporary credentials, service account key
 4. Validate all services using new credentials
 5. Disable old key after 24 hours, delete after confirmation
 
+---
+
 **Monitoring for Compromise:**
 
 Set up automated alerts for suspicious patterns:
 
-- **Geographic anomalies**: Access from unexpected countries/regions
-- **Time anomalies**: Activity outside normal business hours (3 AM when no deployments occur)
-- **Excessive API calls**: 10x normal volume indicates data exfiltration or misconfiguration
-- **Failed authentication**: >5 attempts in 10 minutes suggests brute force
-- **Permission escalation**: Attempts to access resources outside granted permissions
+| Alert Type                | Trigger                                     | Indicates                             |
+| ------------------------- | ------------------------------------------- | ------------------------------------- |
+| **Geographic anomalies**  | Access from unexpected countries/regions    | Compromised credentials               |
+| **Time anomalies**        | Activity outside normal hours (3 AM)        | Unauthorized access                   |
+| **Excessive API calls**   | 10x normal volume                           | Data exfiltration or misconfiguration |
+| **Failed authentication** | >5 attempts in 10 minutes                   | Brute force attack                    |
+| **Permission escalation** | Access attempts outside granted permissions | Privilege escalation attempt          |
 
 **Detection Example (AWS CloudTrail):**
 
@@ -1470,6 +1516,8 @@ def detect_anomalies():
             alert_security_team(f"Anomalous access from {source_ip}")
 ```
 
+---
+
 **Service Accounts vs Workload Identity:**
 
 | Feature         | Service Account Keys | Workload Identity (IAM Roles) |
@@ -1480,6 +1528,8 @@ def detect_anomalies():
 | Use Case        | Cross-cloud, CI/CD   | Cloud-native apps             |
 
 **Recommendation**: Always prefer workload identity (AWS IRSA, GKE Workload Identity, AKS Managed Identity) over service account keys when available. Use keys only when workload identity is not an option.
+
+---
 
 **Governance Policies:**
 

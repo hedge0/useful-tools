@@ -337,9 +337,18 @@ Enforce security policies at deployment time to prevent misconfigurations and en
 
 Deploy [Kyverno](https://github.com/kyverno/kyverno) for Kubernetes-native policy enforcement without learning a new language.
 
-**Essential Policies**:
+**Essential Security Policies:**
 
-**Require resource limits** (prevent resource exhaustion):
+Kyverno enforces these policies at pod deployment to prevent security misconfigurations:
+
+1. **Require Resource Limits** - Prevents resource exhaustion by requiring CPU/memory limits
+2. **Block Privileged Containers** - Prevents privilege escalation attacks
+3. **Require Non-Root User** - Ensures containers run as non-root user
+4. **Verify Image Signatures** - Validates images are signed with Cosign
+
+---
+
+**Example Policy: Require Resource Limits**
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -365,7 +374,9 @@ spec:
                     cpu: "?*"
 ```
 
-**Block privileged containers**:
+---
+
+**Example Policy: Block Privileged Containers**
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -389,7 +400,9 @@ spec:
                   privileged: false
 ```
 
-**Require non-root containers**:
+---
+
+**Example Policy: Require Non-Root Containers**
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -412,7 +425,11 @@ spec:
               runAsNonRoot: true
 ```
 
-**Verify image signatures** (requires [Cosign](https://github.com/sigstore/cosign)):
+---
+
+**Example Policy: Verify Image Signatures**
+
+Requires [Cosign](https://github.com/sigstore/cosign) for signing container images.
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -440,7 +457,11 @@ spec:
                       -----END PUBLIC KEY-----
 ```
 
-**Additional Security Policies**:
+---
+
+**Additional Security Policies:**
+
+Implement these additional policies for comprehensive security:
 
 - Block hostNetwork, hostPID, hostIPC usage
 - Require pod security labels
@@ -450,7 +471,9 @@ spec:
 - Block dangerous capabilities
 - Enforce distroless or minimal base images (no package managers)
 
-**Deployment workflow**: Kyverno runs as admission controller, validates policies before pods are created, blocks non-compliant workloads automatically.
+**Deployment Workflow:**
+
+Kyverno runs as admission controller, validates policies before pods are created, blocks non-compliant workloads automatically.
 
 ## 7. Continuous Vulnerability & Threat Detection
 

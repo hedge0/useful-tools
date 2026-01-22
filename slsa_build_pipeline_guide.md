@@ -194,6 +194,8 @@ Verify the patched and compressed image functions correctly before security scan
 
 **Implementation**: Create `test.sh` in repository with comprehensive, fast tests using exit codes and clear error messages.
 
+---
+
 **Example Test Script Structure:**
 
 ```bash
@@ -221,32 +223,60 @@ docker rm -f "$CONTAINER_ID"
 if [ "$HTTP_CODE" != "200" ]; then exit 1; fi
 ```
 
+---
+
 **Security-Specific Tests:**
 
-- Package managers removed: `docker run --rm "$IMAGE_NAME" sh -c "apt --version 2>&1" | grep "not found"`
-- Non-root enforcement: Verify UID is not 0
-- No secrets in environment: Check `docker run --rm --entrypoint env "$IMAGE_NAME"` for sensitive patterns
-- Read-only filesystem works (if applicable): `docker run --rm --read-only "$IMAGE_NAME" sh -c "touch /test"`
+Test that security hardening is properly applied:
+
+- **Package managers removed**: Verify `apt`, `yum`, `apk` commands fail
+
+  ```bash
+  docker run --rm "$IMAGE_NAME" sh -c "apt --version 2>&1" | grep "not found"
+  ```
+
+- **Non-root enforcement**: Verify UID is not 0 using `id -u`
+
+- **No secrets in environment**: Scan environment variables for patterns like `password`, `key`, `token`
+
+  ```bash
+  docker run --rm --entrypoint env "$IMAGE_NAME" | grep -iE "(password|secret|key|token)="
+  ```
+
+- **Read-only filesystem**: Test with `docker run --read-only` flag
+  ```bash
+  docker run --rm --read-only "$IMAGE_NAME" sh -c "touch /test"
+  ```
+
+---
 
 **Test Frameworks by Language:**
 
-- **Shell scripts** (recommended): Portable, no dependencies, works with any image
-- **Python pytest**: Complex validation logic, API testing with `docker-py` and `requests` libraries
-- **Go testing**: Fast compiled tests with `testcontainers-go` for container lifecycle
-- **Node.js Jest**: JavaScript apps with `dockerode` for Docker interaction
+- **Shell scripts** (recommended) - Portable, no dependencies, works with any image
+- **Python pytest** - Complex validation logic, API testing with `docker-py` and `requests` libraries
+- **Go testing** - Fast compiled tests with `testcontainers-go` for container lifecycle
+- **Node.js Jest** - JavaScript apps with `dockerode` for Docker interaction
+
+---
 
 **Best Practices:**
 
-- Fast-fail: Exit immediately on first failure
-- Timeouts: Each test max 30-60 seconds to prevent hanging
-- Clear errors: Include expected vs actual, container logs on failure
-- Keep tests simple: Sequential execution is fine for 15-30 tests (~2-3 minutes total)
+- Exit immediately on first failure (fast-fail approach)
+- Set 30-60 second timeouts per test to prevent hanging
+- Include expected vs actual values in error messages
+- Sequential execution is fine (15-30 tests take 2-3 minutes)
+
+---
 
 **Test Coverage Targets:**
 
-- **Minimum**: Basic + runtime security + dependencies (~10-15 tests, ~1 minute)
-- **Recommended**: Above + application-specific + security tests (~20-30 tests, ~2-3 minutes)
-- **Comprehensive**: Above + integration + performance (~40-50 tests, ~5-8 minutes)
+| Level             | Tests Included                                | Count       | Duration |
+| ----------------- | --------------------------------------------- | ----------- | -------- |
+| **Minimum**       | Basic + runtime security + dependencies       | 10-15 tests | ~1 min   |
+| **Recommended**   | Above + application-specific + security tests | 20-30 tests | ~2-3 min |
+| **Comprehensive** | Above + integration + performance             | 40-50 tests | ~5-8 min |
+
+---
 
 **Failure Handling**: Stop pipeline immediately, log failure details, preserve failed image for debugging, notify team.
 
