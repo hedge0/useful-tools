@@ -1,5 +1,7 @@
 # Kubernetes Security Architecture Guide
 
+**Last Updated:** January 21, 2026
+
 A cloud-agnostic guide for building production-ready Kubernetes clusters with defense-in-depth security, high availability, and disaster recovery. This guide includes industry best practices and lessons learned from real-world production implementations.
 
 ## Table of Contents
@@ -37,20 +39,25 @@ A cloud-agnostic guide for building production-ready Kubernetes clusters with de
     - [Fluentd Log Aggregation](#fluentd-log-aggregation)
     - [Prometheus & Grafana](#prometheus--grafana)
     - [Log Retention & Compliance](#log-retention--compliance)
-11. [Disaster Recovery](#disaster-recovery)
+11. [Identity & Access Management](#identity--access-management)
+    - [Kubernetes RBAC (Role-Based Access Control)](#kubernetes-rbac-role-based-access-control)
+    - [Workload Identity & Cloud IAM Integration](#workload-identity--cloud-iam-integration)
+    - [Cloud IAM Policy Best Practices](#cloud-iam-policy-best-practices)
+    - [Access Control Verification](#access-control-verification)
+12. [Disaster Recovery](#disaster-recovery)
     - [Recovery Strategy](#recovery-strategy)
     - [Recovery Procedure](#recovery-procedure)
     - [Testing & Validation](#testing--validation)
-12. [Incident Response](#incident-response)
+13. [Incident Response](#incident-response)
     - [Detection & Initial Response](#detection--initial-response)
     - [Containment & Recovery](#containment--recovery)
     - [Post-Incident](#post-incident)
-13. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+14. [Attack Scenarios Prevented](#attack-scenarios-prevented)
     - [Container & Pod Security](#container--pod-security)
     - [Network & Lateral Movement](#network--lateral-movement)
     - [Supply Chain & Image Security](#supply-chain--image-security)
     - [Secrets & Configuration](#secrets--configuration)
-14. [References](#references)
+15. [References](#references)
     - [Infrastructure & Orchestration](#infrastructure--orchestration)
     - [Security & Policy](#security--policy)
     - [Observability](#observability)
@@ -690,6 +697,185 @@ Deploy in admin cluster for metrics collection and visualization.
 2. Compress (gzip, zstd)
 3. Upload to cold storage with lifecycle policies
 4. Delete from hot storage
+
+## Identity & Access Management
+
+Implement least-privilege access control through Kubernetes RBAC and cloud provider IAM integration to minimize blast radius of compromised credentials.
+
+### Kubernetes RBAC
+
+**ServiceAccount Configuration**:
+
+- Create dedicated ServiceAccount per application (not `default`)
+- Set `automountServiceAccountToken: false` unless pod needs Kubernetes API access
+- Use namespace-scoped Roles (not ClusterRoles) for applications
+- Grant minimal permissions: `get` only, avoid `list`, `watch`, `*` verbs
+
+**RBAC Example**:
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-server-sa
+  namespace: production
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-server-role
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-server-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: api-server-sa
+roleRef:
+  kind: Role
+  name: api-server-role
+  apiGroup: rbac.authorization.k8s.io
+```
+
+**Pod Security Context**:
+
+```yaml
+spec:
+  serviceAccountName: api-server-sa
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: app
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+```
+
+### Workload Identity
+
+Allow pods to assume cloud IAM roles without storing credentials.
+
+**AWS EKS - IRSA (IAM Roles for Service Accounts)**:
+
+```bash
+# Enable OIDC provider
+eksctl utils associate-iam-oidc-provider --cluster=production-cluster --approve
+
+# Create IAM role with trust policy for ServiceAccount
+# Attach least-privilege IAM policy (specific resources only)
+
+# Annotate ServiceAccount
+kubectl annotate serviceaccount api-server-sa \
+  -n production \
+  eks.amazonaws.com/role-arn=arn:aws:iam::ACCOUNT_ID:role/api-server-role
+```
+
+**GCP GKE - Workload Identity**:
+
+```bash
+# Enable Workload Identity on cluster
+gcloud container clusters update production-cluster \
+  --workload-pool=PROJECT_ID.svc.id.goog
+
+# Create GCP service account
+gcloud iam service-accounts create api-server-sa
+
+# Grant permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:api-server-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Bind K8s SA to GCP SA
+gcloud iam service-accounts add-iam-policy-binding \
+  api-server-sa@PROJECT_ID.iam.gserviceaccount.com \
+  --role=roles/iam.workloadIdentityUser \
+  --member="serviceAccount:PROJECT_ID.svc.id.goog[production/api-server-sa]"
+
+# Annotate ServiceAccount
+kubectl annotate serviceaccount api-server-sa \
+  -n production \
+  iam.gke.io/gcp-service-account=api-server-sa@PROJECT_ID.iam.gserviceaccount.com
+```
+
+**Azure AKS - Workload Identity**:
+
+```bash
+# Enable Workload Identity
+az aks update \
+  --resource-group production-rg \
+  --name production-cluster \
+  --enable-workload-identity
+
+# Create managed identity
+az identity create --name api-server-identity --resource-group production-rg
+
+# Grant permissions
+az role assignment create \
+  --assignee CLIENT_ID \
+  --role "Key Vault Secrets User" \
+  --scope /subscriptions/SUB_ID/resourceGroups/production-rg/providers/Microsoft.KeyVault/vaults/prod-keyvault
+
+# Create federated credential
+az identity federated-credential create \
+  --name api-server-federated \
+  --identity-name api-server-identity \
+  --resource-group production-rg \
+  --issuer OIDC_ISSUER_URL \
+  --subject system:serviceaccount:production:api-server-sa
+
+# Annotate ServiceAccount
+kubectl annotate serviceaccount api-server-sa \
+  -n production \
+  azure.workload.identity/client-id=CLIENT_ID
+```
+
+### IAM Policy Best Practices
+
+**Least Privilege**:
+
+- Grant only required actions (avoid `*` wildcards)
+- Restrict to specific resources (exact ARNs, paths, buckets)
+- One IAM role per application (never share)
+- Separate roles for dev/staging/production
+
+**Example AWS Policy**:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:region:account:secret:prod/api/*"
+    }
+  ]
+}
+```
+
+**Verification**:
+
+```bash
+# Test RBAC permissions
+kubectl auth can-i get secrets \
+  --as=system:serviceaccount:production:api-server-sa -n production
+
+# Audit IAM usage
+# AWS: CloudTrail logs for AssumeRoleWithWebIdentity
+# GCP: Cloud Audit Logs for service account usage
+# Azure: Activity logs for managed identity auth
+```
 
 ## Disaster Recovery
 

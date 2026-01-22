@@ -1,5 +1,7 @@
 # API Security Design Guide
 
+**Last Updated:** January 21, 2026
+
 A cloud-agnostic guide for building production-ready APIs with a practical blend of security and performance. This guide includes industry best practices and lessons learned from real-world implementations across serverless and traditional architectures.
 
 ## Table of Contents
@@ -63,16 +65,22 @@ A cloud-agnostic guide for building production-ready APIs with a practical blend
     - [Versioning Approaches](#versioning-approaches)
     - [When to Increment Versions](#when-to-increment-versions)
     - [Deprecation Strategy](#deprecation-strategy)
-14. [Incident Response](#incident-response)
+14. [Identity & Access Management](#identity--access-management)
+    - [Cloud IAM Policies for API Infrastructure](#cloud-iam-policies-for-api-infrastructure)
+    - [Service Account Management](#service-account-management)
+    - [Secrets Retrieval Patterns](#secrets-retrieval-patterns)
+    - [Database Access Patterns](#database-access-patterns)
+    - [Access Monitoring and Auditing](#access-monitoring-and-auditing)
+15. [Incident Response](#incident-response)
     - [Detection & Initial Response](#detection--initial-response)
     - [Containment & Recovery](#containment--recovery)
     - [Post-Incident](#post-incident)
-15. [Attack Scenarios Prevented](#attack-scenarios-prevented)
+16. [Attack Scenarios Prevented](#attack-scenarios-prevented)
     - [Authentication & Authorization Attacks](#authentication--authorization-attacks)
     - [Injection & Input Attacks](#injection--input-attacks)
     - [Availability & Performance Attacks](#availability--performance-attacks)
     - [Supply Chain & Dependencies](#supply-chain--dependencies)
-16. [References](#references)
+17. [References](#references)
 
 ## Overview
 
@@ -1019,6 +1027,194 @@ Timeline and communication:
 2. v1 deprecated (6-12 months support)
 3. v3 released
 4. v1 removed, v2 deprecated
+
+## Identity & Access Management
+
+Configure least-privilege access control for API infrastructure, service accounts, and secrets management to minimize blast radius of compromised credentials.
+
+### Cloud IAM Policies
+
+**Serverless Functions** (AWS Lambda, GCP Cloud Functions, Azure Functions):
+
+Attach minimal execution role to each function:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:region:account:secret:prod/api/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:region:account:log-group:/aws/lambda/api-*"
+    }
+  ]
+}
+```
+
+**GCP Service Account**:
+
+```bash
+# Create service account
+gcloud iam service-accounts create api-function-sa
+
+# Grant specific permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:api-function-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Deploy with service account
+gcloud functions deploy api-function \
+  --service-account=api-function-sa@PROJECT_ID.iam.gserviceaccount.com
+```
+
+**Azure Managed Identity**:
+
+```bash
+# Enable managed identity
+az functionapp identity assign --name api-function-app --resource-group production-rg
+
+# Grant Key Vault access
+az keyvault set-policy --name prod-keyvault --object-id PRINCIPAL_ID --secret-permissions get
+```
+
+**Container/VM Roles**:
+
+- AWS: Attach IAM role to EC2 instance profile or ECS task role
+- GCP: Use Workload Identity (see Kubernetes Security Guide)
+- Azure: Use managed identity
+- Never store credentials in environment variables or config files
+
+### Service Account Best Practices
+
+**Scope and Separation**:
+
+- One service account per application/function (never share)
+- Separate accounts for dev/staging/production environments
+- Naming: `{env}-{service}-{purpose}` (e.g., `prod-api-secrets`)
+
+**Least Privilege**:
+
+- Grant only required actions (avoid `*` wildcards)
+- Restrict to specific resources (exact ARNs, paths, buckets)
+- Use IAM conditions (IP restrictions, time-based, request attributes)
+- Audit and remove unused permissions quarterly
+
+### Secrets Retrieval Patterns
+
+**Serverless Cold Start Caching**:
+
+```python
+import boto3
+from functools import lru_cache
+
+secrets_client = boto3.client('secretsmanager')
+
+@lru_cache(maxsize=128)
+def get_secret(secret_name):
+    response = secrets_client.get_secret_value(SecretId=secret_name)
+    return response['SecretString']
+
+def lambda_handler(event, context):
+    db_password = get_secret('prod/api/db-password')
+    # Secret cached for container lifetime
+```
+
+**Container Startup Pattern**:
+
+```python
+from google.cloud import secretmanager
+
+class Config:
+    def __init__(self):
+        client = secretmanager.SecretManagerServiceClient()
+        self.db_password = client.access_secret_version(
+            name="projects/PROJECT_ID/secrets/db-password/versions/latest"
+        ).payload.data.decode('UTF-8')
+
+# Initialize once at startup
+config = Config()
+```
+
+**Long-Running Service Refresh**:
+
+```python
+import time
+from threading import Thread
+
+class SecretManager:
+    def __init__(self):
+        self.secrets = {}
+        Thread(target=self._refresh_loop, daemon=True).start()
+
+    def _refresh_loop(self):
+        while True:
+            self.secrets['db_password'] = fetch_secret('prod/api/db-password')
+            time.sleep(3600)  # Refresh hourly
+```
+
+### Database Access
+
+**Application User (Non-Root)**:
+
+```sql
+-- PostgreSQL example
+CREATE USER api_app_user WITH PASSWORD 'secure_password';
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE users, orders TO api_app_user;
+REVOKE CREATE ON SCHEMA public FROM api_app_user;
+```
+
+**IAM Database Authentication** (eliminates passwords):
+
+AWS RDS IAM Auth:
+
+```python
+import boto3
+import pymysql
+
+rds_client = boto3.client('rds')
+token = rds_client.generate_db_auth_token(
+    DBHostname='prod-db.cluster.us-east-1.rds.amazonaws.com',
+    Port=3306,
+    DBUsername='api_iam_user',
+    Region='us-east-1'
+)
+
+connection = pymysql.connect(
+    host='prod-db.cluster.us-east-1.rds.amazonaws.com',
+    user='api_iam_user',
+    password=token,  # Token valid 15 minutes
+    ssl={'ssl_mode': 'REQUIRED'}
+)
+```
+
+GCP Cloud SQL and Azure Database support similar IAM authentication.
+
+### Monitoring and Auditing
+
+**Enable Cloud Audit Logs**:
+
+- AWS CloudTrail: Log IAM role assumptions, API calls, secret accesses
+- GCP Cloud Audit Logs: Log service account usage, Secret Manager access
+- Azure Activity Logs: Log managed identity auth, Key Vault access
+
+**Alert on Suspicious Activity**:
+
+- Failed authentication (>5 attempts in 10 minutes)
+- Secret access from unexpected IPs/regions
+- New IAM policy attachments or role assumptions
+- Service account usage outside normal hours
+
+**Regular Audits**:
+
+- Review and delete unused service accounts quarterly
+- Analyze audit logs for privilege escalation patterns
+- Verify environment separation (dev can't access prod)
+- Check for overly permissive policies
 
 ## Incident Response
 
