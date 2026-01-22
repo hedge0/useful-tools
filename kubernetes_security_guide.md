@@ -171,6 +171,64 @@ Design secure network topology with proper isolation and managed databases for p
 - Admin ALB restricted to VPN range or bastion IP only
 - Never expose Kubernetes API or admin tools to 0.0.0.0/0
 
+**Multi-AZ Network Architecture:**
+
+```mermaid
+graph TB
+    subgraph "VPC - 10.0.0.0/16"
+        subgraph "Availability Zone 1"
+            PubSub1["Public Subnet<br/>10.0.1.0/24<br/>ALB"]
+            PrivSub1["Private Subnet<br/>10.0.11.0/24<br/>K8s Workers"]
+            DBSub1["Database Subnet<br/>10.0.21.0/24<br/>RDS"]
+        end
+
+        subgraph "Availability Zone 2"
+            PubSub2["Public Subnet<br/>10.0.2.0/24<br/>ALB"]
+            PrivSub2["Private Subnet<br/>10.0.12.0/24<br/>K8s Workers"]
+            DBSub2["Database Subnet<br/>10.0.22.0/24<br/>RDS Standby"]
+        end
+
+        subgraph "Availability Zone 3"
+            PubSub3["Public Subnet<br/>10.0.3.0/24<br/>ALB"]
+            PrivSub3["Private Subnet<br/>10.0.13.0/24<br/>K8s Workers"]
+            DBSub3["Database Subnet<br/>10.0.23.0/24"]
+        end
+
+        NAT1["NAT Gateway<br/>AZ1"]
+        NAT2["NAT Gateway<br/>AZ2"]
+        NAT3["NAT Gateway<br/>AZ3"]
+
+        IGW["Internet Gateway"]
+    end
+
+    Internet["Internet"] --> IGW
+    IGW --> PubSub1
+    IGW --> PubSub2
+    IGW --> PubSub3
+
+    PubSub1 --> NAT1
+    PubSub2 --> NAT2
+    PubSub3 --> NAT3
+
+    PrivSub1 --> NAT1
+    PrivSub2 --> NAT2
+    PrivSub3 --> NAT3
+
+    PrivSub1 -.->|Private Connection| DBSub1
+    PrivSub2 -.->|Private Connection| DBSub2
+    PrivSub3 -.->|Private Connection| DBSub3
+
+    style PubSub1 fill:#e1f5ff
+    style PubSub2 fill:#e1f5ff
+    style PubSub3 fill:#e1f5ff
+    style PrivSub1 fill:#fff4e1
+    style PrivSub2 fill:#fff4e1
+    style PrivSub3 fill:#fff4e1
+    style DBSub1 fill:#ffe1e1
+    style DBSub2 fill:#ffe1e1
+    style DBSub3 fill:#ffe1e1
+```
+
 ### Database Layer
 
 **Use Managed Databases** (Required):
@@ -200,6 +258,66 @@ Never run databases in Kubernetes for production. Use AWS RDS, GCP Cloud SQL, or
 ## Cluster Architecture & Separation
 
 Isolate production workloads from administrative tooling using separate Kubernetes clusters.
+
+**Two-Cluster Architecture:**
+
+```mermaid
+graph TB
+    subgraph "Admin Cluster - Restricted Access"
+        ArgoCD["ArgoCD<br/>GitOps Controller"]
+        Prometheus["Prometheus<br/>Metrics"]
+        Grafana["Grafana<br/>Dashboards"]
+        AdminALB["Admin ALB<br/>VPN/Bastion Only"]
+    end
+
+    subgraph "Production Cluster - Customer Traffic"
+        CustomerALB["Customer ALB<br/>+ WAF"]
+        Istio["Istio Gateway<br/>mTLS"]
+        App1["App Pods<br/>Namespace: prod-api"]
+        App2["App Pods<br/>Namespace: prod-web"]
+        Kyverno["Kyverno<br/>Policy Enforcement"]
+        Falco["Falco<br/>Runtime Security"]
+        TrivyOp["Trivy Operator<br/>Vuln Scanning"]
+    end
+
+    subgraph "Database Layer - Private Subnet"
+        RDS["Multi-AZ RDS<br/>PostgreSQL/MySQL"]
+    end
+
+    VPN["VPN/Bastion"] --> AdminALB
+    AdminALB --> ArgoCD
+    AdminALB --> Grafana
+    ArgoCD -->|Deploy| App1
+    ArgoCD -->|Deploy| App2
+    Prometheus -->|Scrape Metrics| App1
+    Prometheus -->|Scrape Metrics| App2
+    Grafana -->|Query| Prometheus
+
+    Internet["Internet"] --> CustomerALB
+    CustomerALB --> Istio
+    Istio --> App1
+    Istio --> App2
+
+    App1 -.->|Private| RDS
+    App2 -.->|Private| RDS
+
+    Kyverno -.->|Enforce Policies| App1
+    Kyverno -.->|Enforce Policies| App2
+    Falco -.->|Monitor| App1
+    Falco -.->|Monitor| App2
+    TrivyOp -.->|Scan| App1
+    TrivyOp -.->|Scan| App2
+
+    style ArgoCD fill:#e1f5ff
+    style Prometheus fill:#e1f5ff
+    style Grafana fill:#e1f5ff
+    style App1 fill:#e8f5e9
+    style App2 fill:#e8f5e9
+    style RDS fill:#ffe1e1
+    style Kyverno fill:#fff4e1
+    style Falco fill:#fff4e1
+    style TrivyOp fill:#fff4e1
+```
 
 ### Two-Cluster Design (Recommended)
 
@@ -236,6 +354,51 @@ Use Kubernetes namespaces with strict NetworkPolicies if cost is primary constra
 - Only recommended for non-critical applications or small teams
 
 **Recommendation**: Use separate clusters for production - minimal overhead with managed Kubernetes, significant security benefit.
+
+**Network Policy Isolation Example:**
+
+```mermaid
+graph TB
+    subgraph "Cluster with Network Policies"
+        subgraph "Namespace: istio-system"
+            Gateway["Istio Gateway<br/>Ingress Point"]
+        end
+
+        subgraph "Namespace: production"
+            API["API Service<br/>app=api"]
+            Worker["Worker Service<br/>app=worker"]
+            NP1["NetworkPolicy:<br/>default-deny-ingress"]
+            NP2["NetworkPolicy:<br/>allow-from-gateway"]
+        end
+
+        subgraph "Namespace: admin"
+            ArgoCD2["ArgoCD"]
+            NP3["NetworkPolicy:<br/>default-deny-all"]
+        end
+
+        subgraph "Namespace: monitoring"
+            Prometheus2["Prometheus"]
+            NP4["NetworkPolicy:<br/>allow-scraping"]
+        end
+    end
+
+    Internet2["Internet"] -->|Allowed| Gateway
+    Gateway -->|Allowed by NP2| API
+    API -->|Blocked by NP1| Worker
+    Gateway -.->|Blocked| ArgoCD2
+    Prometheus2 -->|Allowed by NP4| API
+    Prometheus2 -->|Allowed by NP4| Worker
+
+    style Gateway fill:#e1f5ff
+    style API fill:#e8f5e9
+    style Worker fill:#e8f5e9
+    style ArgoCD2 fill:#ffe1e1
+    style Prometheus2 fill:#fff4e1
+    style NP1 fill:#fff9e1
+    style NP2 fill:#fff9e1
+    style NP3 fill:#fff9e1
+    style NP4 fill:#fff9e1
+```
 
 ### Network Policy Implementation
 
@@ -282,6 +445,41 @@ Apply default-deny first, then explicitly allow required traffic. Test with: `ku
 ## Ingress & Traffic Management
 
 Configure load balancers, WAF, and service mesh to secure and route traffic to appropriate services.
+
+**Production Traffic Flow:**
+
+```mermaid
+graph LR
+    Client["Client<br/>(Browser/API)"] --> CloudFlare["Edge/CDN<br/>Cloudflare/CloudFront"]
+    CloudFlare --> WAF["WAF<br/>DDoS Protection<br/>Rate Limiting"]
+    WAF --> ALB["Application<br/>Load Balancer<br/>TLS Termination"]
+    ALB --> SG1["Security Group<br/>Allow: ALB only"]
+    SG1 --> Istio["Istio Ingress<br/>Gateway<br/>mTLS Enabled"]
+    Istio --> NP["Network Policy<br/>Allow from<br/>istio-system"]
+    NP --> Pod1["Pod: api-service<br/>Non-root user<br/>Read-only FS"]
+    NP --> Pod2["Pod: web-service<br/>Non-root user<br/>Read-only FS"]
+
+    Pod1 --> SG2["Security Group<br/>Worker nodes only"]
+    Pod2 --> SG2
+    SG2 --> DB["RDS Database<br/>Private Subnet<br/>Multi-AZ<br/>Encrypted"]
+
+    Pod1 -.->|mTLS| Pod2
+
+    Kyverno["Kyverno"] -.->|Policy Check| Pod1
+    Kyverno -.->|Policy Check| Pod2
+    Falco["Falco"] -.->|Runtime Monitor| Pod1
+    Falco -.->|Runtime Monitor| Pod2
+
+    style CloudFlare fill:#e1f5ff
+    style WAF fill:#e1f5ff
+    style ALB fill:#e1f5ff
+    style Istio fill:#fff4e1
+    style Pod1 fill:#e8f5e9
+    style Pod2 fill:#e8f5e9
+    style DB fill:#ffe1e1
+    style Kyverno fill:#fff9e1
+    style Falco fill:#fff9e1
+```
 
 ### Load Balancer Architecture
 
@@ -880,6 +1078,55 @@ kubectl auth can-i get secrets \
 ## Disaster Recovery
 
 Complete environment recovery through infrastructure as code, database backups, and GitOps.
+
+**Disaster Recovery Architecture:**
+
+```mermaid
+graph TB
+    subgraph "Source of Truth"
+        Git["Git Repository<br/>Application Manifests<br/>Helm Charts"]
+        TF["Terraform Code<br/>Infrastructure<br/>S3/GCS Backend"]
+        Snapshots["Database Snapshots<br/>Automated Daily<br/>Cross-Region Copy"]
+    end
+
+    subgraph "Recovery Process"
+        Step1["1. Terraform Apply<br/>New VPC/Clusters<br/>30-60 min"]
+        Step2["2. Restore Database<br/>From Snapshot<br/>15-30 min"]
+        Step3["3. Deploy ArgoCD<br/>To Admin Cluster<br/>5 min"]
+        Step4["4. ArgoCD Sync<br/>All Applications<br/>10-20 min"]
+        Step5["5. Update DNS<br/>Point to New ALB<br/>5 min + TTL"]
+    end
+
+    subgraph "New Environment"
+        NewVPC["New VPC<br/>Multi-AZ"]
+        NewClusters["New Clusters<br/>Admin + Prod"]
+        NewDB["New RDS<br/>Restored Data"]
+        NewALB["New ALB<br/>With WAF"]
+    end
+
+    TF --> Step1
+    Snapshots --> Step2
+    Step1 --> NewVPC
+    Step1 --> NewClusters
+    Step2 --> NewDB
+    Step1 --> NewALB
+
+    Step3 --> NewClusters
+    Git --> Step4
+    Step4 --> NewClusters
+    Step5 --> NewALB
+
+    RTO["RTO: 60-120 minutes<br/>RPO: 5 minutes"]
+
+    style Git fill:#e1f5ff
+    style TF fill:#e1f5ff
+    style Snapshots fill:#ffe1e1
+    style NewVPC fill:#e8f5e9
+    style NewClusters fill:#e8f5e9
+    style NewDB fill:#ffe1e1
+    style NewALB fill:#e8f5e9
+    style RTO fill:#fff4e1
+```
 
 ### Recovery Strategy
 
