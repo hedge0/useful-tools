@@ -917,71 +917,105 @@ spec:
           drop: ["ALL"]
 ```
 
-### Workload Identity
+### Workload Identity & Cloud IAM Integration
 
-Allow pods to assume cloud IAM roles without storing credentials.
+Allow pods to assume cloud IAM roles without storing credentials. This eliminates the need for service account keys and provides automatic credential rotation.
 
-**AWS EKS - IRSA (IAM Roles for Service Accounts)**:
+**Key Differences by Cloud Provider:**
+
+| Feature                 | AWS EKS (IRSA)               | GCP GKE (Workload Identity)      | Azure AKS (Workload Identity)       |
+| ----------------------- | ---------------------------- | -------------------------------- | ----------------------------------- |
+| **Setup Complexity**    | Medium (OIDC provider)       | Medium (Workload pool)           | Medium (Federated credential)       |
+| **Auth Method**         | OIDC federation              | Workload Identity binding        | Managed identity federation         |
+| **Credential Lifetime** | 15 min (auto-refresh)        | 60 min (auto-refresh)            | Variable (auto-refresh)             |
+| **Annotation Required** | `eks.amazonaws.com/role-arn` | `iam.gke.io/gcp-service-account` | `azure.workload.identity/client-id` |
+| **IAM Role Type**       | IAM Role with trust policy   | GCP Service Account              | Azure Managed Identity              |
+
+---
+
+**AWS EKS - IRSA (IAM Roles for Service Accounts):**
+
+Enable pods to assume IAM roles using OIDC federation.
 
 ```bash
-# Enable OIDC provider
+# Step 1: Enable OIDC provider on cluster
 eksctl utils associate-iam-oidc-provider --cluster=production-cluster --approve
 
-# Create IAM role with trust policy for ServiceAccount
-# Attach least-privilege IAM policy (specific resources only)
+# Step 2: Create IAM role with trust policy for ServiceAccount
+# (Attach least-privilege IAM policy with specific resources only)
 
-# Annotate ServiceAccount
+# Step 3: Annotate Kubernetes ServiceAccount
 kubectl annotate serviceaccount api-server-sa \
   -n production \
   eks.amazonaws.com/role-arn=arn:aws:iam::ACCOUNT_ID:role/api-server-role
 ```
 
-**GCP GKE - Workload Identity**:
+**Key Points:**
+
+- OIDC provider creates trust relationship between EKS and IAM
+- Pods automatically receive temporary credentials via AWS STS
+- No credentials stored in cluster or environment variables
+
+---
+
+**GCP GKE - Workload Identity:**
+
+Bind Kubernetes ServiceAccounts to GCP Service Accounts for seamless authentication.
 
 ```bash
-# Enable Workload Identity on cluster
+# Step 1: Enable Workload Identity on cluster
 gcloud container clusters update production-cluster \
   --workload-pool=PROJECT_ID.svc.id.goog
 
-# Create GCP service account
+# Step 2: Create GCP service account
 gcloud iam service-accounts create api-server-sa
 
-# Grant permissions
+# Step 3: Grant IAM permissions to GCP service account
 gcloud projects add-iam-policy-binding PROJECT_ID \
   --member="serviceAccount:api-server-sa@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
-# Bind K8s SA to GCP SA
+# Step 4: Bind Kubernetes SA to GCP SA
 gcloud iam service-accounts add-iam-policy-binding \
   api-server-sa@PROJECT_ID.iam.gserviceaccount.com \
   --role=roles/iam.workloadIdentityUser \
   --member="serviceAccount:PROJECT_ID.svc.id.goog[production/api-server-sa]"
 
-# Annotate ServiceAccount
+# Step 5: Annotate Kubernetes ServiceAccount
 kubectl annotate serviceaccount api-server-sa \
   -n production \
   iam.gke.io/gcp-service-account=api-server-sa@PROJECT_ID.iam.gserviceaccount.com
 ```
 
-**Azure AKS - Workload Identity**:
+**Key Points:**
+
+- Workload pool establishes trust between GKE and GCP IAM
+- Binding creates 1:1 relationship between K8s SA and GCP SA
+- Credentials automatically injected into pod environment
+
+---
+
+**Azure AKS - Workload Identity:**
+
+Use managed identities with federated credentials for pod authentication.
 
 ```bash
-# Enable Workload Identity
+# Step 1: Enable Workload Identity on cluster
 az aks update \
   --resource-group production-rg \
   --name production-cluster \
   --enable-workload-identity
 
-# Create managed identity
+# Step 2: Create Azure managed identity
 az identity create --name api-server-identity --resource-group production-rg
 
-# Grant permissions
+# Step 3: Grant permissions to managed identity
 az role assignment create \
   --assignee CLIENT_ID \
   --role "Key Vault Secrets User" \
   --scope /subscriptions/SUB_ID/resourceGroups/production-rg/providers/Microsoft.KeyVault/vaults/prod-keyvault
 
-# Create federated credential
+# Step 4: Create federated credential for K8s ServiceAccount
 az identity federated-credential create \
   --name api-server-federated \
   --identity-name api-server-identity \
@@ -989,11 +1023,17 @@ az identity federated-credential create \
   --issuer OIDC_ISSUER_URL \
   --subject system:serviceaccount:production:api-server-sa
 
-# Annotate ServiceAccount
+# Step 5: Annotate Kubernetes ServiceAccount
 kubectl annotate serviceaccount api-server-sa \
   -n production \
   azure.workload.identity/client-id=CLIENT_ID
 ```
+
+**Key Points:**
+
+- Federated credential links managed identity to K8s ServiceAccount
+- Azure automatically handles token exchange and renewal
+- Works with Azure AD-integrated resources (Key Vault, Storage, etc.)
 
 ### IAM Policy Best Practices
 

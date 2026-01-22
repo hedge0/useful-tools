@@ -159,44 +159,32 @@ This guide outlines a production-grade API design approach that balances securit
 
 ### Serverless vs Containers/VMs
 
-**Serverless (AWS Lambda, GCP Cloud Functions, Azure Functions)**
+Choose the deployment model that matches your application's latency, traffic patterns, and operational requirements.
 
-Advantages:
+| Aspect                   | Serverless (Lambda, Cloud Functions, Azure Functions)        | Containers/VMs (ECS, GKE, AKS, EC2)                    |
+| ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------ |
+| **Management**           | Fully managed - no provisioning, patching, or scaling config | Manual provisioning, patching, monitoring, scaling     |
+| **Security**             | Ephemeral environments reduce attack surface                 | Requires ongoing security maintenance                  |
+| **Latency**              | Cold start: 100ms-3s (depending on language)                 | No cold starts - consistently low latency              |
+| **Scaling**              | Automatic, instant scale-to-zero                             | Requires autoscaling configuration                     |
+| **Cost Model**           | Pay-per-invocation (cost-effective for sporadic traffic)     | Reserved capacity (better for consistent high traffic) |
+| **Workload Support**     | Event-driven, stateless only                                 | Supports stateful services, WebSockets, streaming      |
+| **Connection Handling**  | No persistent connections                                    | Connection pooling, long-lived connections             |
+| **Operational Overhead** | Minimal (ideal for small teams)                              | Higher (requires DevOps expertise)                     |
 
-- Easier to manage - no provisioning, patching, or scaling configuration
-- More secure - ephemeral environments reduce attack surface
-- Auto-scaling and pay-per-invocation pricing
+**Use Serverless When:**
 
-Disadvantages:
-
-- Cold start latency (100ms-3s depending on language)
-- Cannot handle stateful workloads or persistent connections
-- Not suitable for WebSockets, streaming, or long-running processes
-
-Use serverless when:
-
-- Event-driven workloads with sporadic traffic
+- Event-driven workloads with sporadic or unpredictable traffic
 - Can tolerate 100-500ms cold start latency
 - Team lacks dedicated DevOps resources
+- Want to minimize operational complexity
 
-**Containers/VMs (ECS, GKE, AKS, EC2, Compute Engine)**
+**Use Containers/VMs When:**
 
-Advantages:
-
-- Lower latency - no cold starts
-- Supports stateful services, WebSockets, connection pooling
-- More cost-effective for consistent high traffic
-
-Disadvantages:
-
-- Requires provisioning, patching, monitoring, scaling configuration
-- Higher management overhead
-
-Use containers/VMs when:
-
-- Latency-critical applications (<50ms response time)
+- Latency-critical applications requiring <50ms response time
 - Stateful services (WebSockets, streaming, persistent connections)
-- High, consistent traffic patterns
+- High, consistent traffic patterns where reserved capacity is cheaper
+- Need full control over runtime environment
 
 ### API Gateway Architecture
 
@@ -305,40 +293,24 @@ For production systems with multiple services, deploy an API Gateway between you
 
 ### Language Selection for Serverless
 
-**Go** (Recommended):
+Choose a language that balances cold start performance, developer productivity, and team expertise.
 
-- Cold start: ~150-250ms
-- Compiled, static binaries, strong dependency management
-- Built-in concurrency (goroutines)
-- Best balance of performance and developer experience
+| Language               | Cold Start                         | Key Strengths                                                                      | Best For                                                                       | Ecosystem                                     |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
+| **Go** ⭐              | 150-250ms                          | Compiled binaries, built-in concurrency (goroutines), strong dependency management | **Recommended default** - best balance of performance and developer experience | Excellent for APIs, microservices             |
+| **Rust**               | 100-200ms                          | Fastest performance, memory safety guarantees, no runtime overhead                 | Ultra-low latency requirements, cost optimization at scale                     | Steep learning curve, smaller ecosystem       |
+| **TypeScript/Node.js** | 200-500ms                          | Rapid development, massive npm ecosystem, shared frontend/backend code             | Full-stack JavaScript teams, high developer velocity, I/O-heavy workloads      | Largest ecosystem, familiar to web developers |
+| **Python**             | 200-500ms                          | Excellent data/ML libraries (NumPy, Pandas, scikit-learn), simple syntax           | Data processing, ML inference, teams familiar with Python                      | Massive ecosystem for data science            |
+| **Java** ⚠️            | 2-3s (or 200-400ms with SnapStart) | Enterprise ecosystem, mature tooling, type safety                                  | **Only use** with SnapStart/GraalVM native images or in containers/VMs         | Large enterprise ecosystem, slow cold starts  |
 
-**Rust**:
+**Key Considerations:**
 
-- Cold start: ~100-200ms
-- Highest performance, memory safety guarantees
-- Steeper learning curve
-- Best for: Ultra-low latency requirements, cost optimization
+- **Cold Start Impact**: Choose Go or Rust if cold starts are critical (real-time APIs, user-facing endpoints)
+- **Team Expertise**: Use language team already knows well - productivity matters more than 100ms difference
+- **Ecosystem Needs**: Python for data/ML, TypeScript for full-stack teams, Go for general-purpose APIs
+- **Avoid Java** in serverless without mitigation (SnapStart) - 2-3 second cold starts harm user experience
 
-**TypeScript/Node.js**:
-
-- Cold start: ~200-500ms
-- Rapid development, massive ecosystem
-- Good for I/O-heavy workloads
-- Best for: Full-stack JavaScript teams, high developer velocity
-
-**Python**:
-
-- Cold start: ~200-500ms
-- Excellent for data/ML APIs, large ecosystem
-- Competitive cold start times despite being interpreted
-- Best for: Data processing, ML inference, teams familiar with Python
-
-**Java**:
-
-- Cold start: ~2-3 seconds (JVM initialization)
-- Slowest cold starts without mitigation
-- With SnapStart (2025): Reduces to ~200-400ms
-- Only use in containers/VMs or with SnapStart/GraalVM native images
+**Recommendation**: Start with **Go** for most serverless APIs - excellent cold start times, strong concurrency, and great balance of performance and maintainability.
 
 ## 4. Application Security (Pre-Deployment)
 
@@ -1065,26 +1037,29 @@ Never include stack traces, database queries, file paths, or implementation deta
 
 ### HTTP Status Code Standards
 
-**2xx Success:**
+Use appropriate HTTP status codes to clearly communicate request outcomes to clients.
 
-- `200 OK`: Successful GET, PUT, PATCH, DELETE
-- `201 Created`: Successful POST creating resource
-- `204 No Content`: Successful DELETE with no body
+| Code    | Status                | When to Use                                     | Example Scenario                          |
+| ------- | --------------------- | ----------------------------------------------- | ----------------------------------------- |
+| **200** | OK                    | Successful GET, PUT, PATCH, DELETE              | User profile retrieved successfully       |
+| **201** | Created               | Successful POST creating new resource           | New user account created                  |
+| **204** | No Content            | Successful DELETE with no response body         | Comment deleted                           |
+| **400** | Bad Request           | Invalid request body or validation failure      | Missing required field in JSON            |
+| **401** | Unauthorized          | Missing or invalid authentication token         | No JWT token in Authorization header      |
+| **403** | Forbidden             | Authenticated but lacks permission for resource | User trying to delete someone else's post |
+| **404** | Not Found             | Resource doesn't exist                          | Requested user ID not in database         |
+| **405** | Method Not Allowed    | Wrong HTTP method for endpoint                  | POST to read-only endpoint                |
+| **409** | Conflict              | Resource conflict (duplicate, state mismatch)   | Email already registered                  |
+| **429** | Too Many Requests     | Rate limit exceeded                             | User made >100 requests per minute        |
+| **500** | Internal Server Error | Unexpected error (catch-all)                    | Unhandled exception in application        |
+| **503** | Service Unavailable   | Service temporarily down or overloaded          | Database connection pool exhausted        |
 
-**4xx Client Errors:**
+**Best Practices:**
 
-- `400 Bad Request`: Invalid request body or validation failure
-- `401 Unauthorized`: Missing or invalid authentication
-- `403 Forbidden`: Authenticated but lacks permission
-- `404 Not Found`: Resource doesn't exist
-- `405 Method Not Allowed`: Wrong HTTP method
-- `409 Conflict`: Resource conflict
-- `429 Too Many Requests`: Rate limit exceeded
-
-**5xx Server Errors:**
-
-- `500 Internal Server Error`: Unexpected error
-- `503 Service Unavailable`: Service temporarily down
+- Use 4xx for client errors (bad request, auth issues, validation)
+- Use 5xx for server errors (unexpected exceptions, service failures)
+- Never return 200 with error in body - use appropriate error code
+- Include generic error message in response body with request ID
 
 ### Generic External Error Messages
 
