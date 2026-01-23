@@ -1,6 +1,6 @@
 # API Security Design Guide
 
-**Last Updated:** January 22, 2026
+**Last Updated:** January 23, 2026
 
 A cloud-agnostic guide for building production-ready APIs with a practical blend of security and performance. This guide includes industry best practices and lessons learned from real-world implementations across serverless and traditional architectures.
 
@@ -63,6 +63,7 @@ A cloud-agnostic guide for building production-ready APIs with a practical blend
     - [Batching Requests](#batching-requests)
     - [Concurrency Patterns](#concurrency-patterns)
     - [Caching Strategies](#caching-strategies)
+    - [Database Architecture & Performance](#database-architecture--performance)
     - [Serverless Cold Start Mitigation](#serverless-cold-start-mitigation-1)
 13. [API Versioning](#13-api-versioning)
     - [Versioning Approaches](#versioning-approaches)
@@ -1275,11 +1276,93 @@ Implement caching at multiple layers to reduce latency and backend load.
 - Session storage for faster lookups
 - Set appropriate TTLs based on data staleness tolerance
 
-**Database Optimization**:
+**Database Architecture & Performance**:
 
-- Add indexes on frequently queried fields
-- Use connection pooling (RDS Proxy for serverless)
-- Implement read replicas for read-heavy workloads
+Optimize database layer to prevent performance bottlenecks and resource exhaustion attacks.
+
+| Pattern                 | Implementation                              | Security Benefit                                           | When to Use                        |
+| ----------------------- | ------------------------------------------- | ---------------------------------------------------------- | ---------------------------------- |
+| **Connection Pooling**  | PgBouncer, RDS Proxy, or ORM built-in       | Prevents connection exhaustion attacks, 10x faster queries | Always (serverless and containers) |
+| **Read Replicas**       | Route reads to replicas, writes to primary  | Protects primary from overload, scales read capacity       | Read-heavy workloads (>80% reads)  |
+| **Query Optimization**  | Indexes, query timeouts (5s), LIMIT clauses | Prevents table scan and complexity attacks                 | Always                             |
+| **Prepared Statements** | Parameterized queries in all database calls | Prevents SQL injection, improves performance               | Always                             |
+
+**Connection Pooling:**
+
+```javascript
+// Serverless: Use cloud proxy to centralize pooling
+const pool = new Pool({
+  host: process.env.RDS_PROXY_ENDPOINT, // AWS RDS Proxy
+  max: 2, // Keep minimal per Lambda instance
+  idleTimeoutMillis: 1000,
+});
+
+// Containers: Application-level pooling
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  max: 20, // Max connections per container
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+```
+
+**Read/Write Splitting for Read-Heavy Workloads:**
+
+```javascript
+// Separate connection pools
+const primary = createPool(process.env.PRIMARY_DB_URL);
+const replica = createPool(process.env.REPLICA_DB_URL);
+
+// Route by operation type
+async function getUser(id) {
+  // Reads from replica (eventually consistent, acceptable for most use cases)
+  return replica.query("SELECT * FROM users WHERE id = $1", [id]);
+}
+
+async function updateUser(id, data) {
+  // Writes to primary (strongly consistent)
+  await primary.query("UPDATE users SET name = $1 WHERE id = $2", [
+    data.name,
+    id,
+  ]);
+  // For immediate read-after-write, query primary instead of replica
+  return primary.query("SELECT * FROM users WHERE id = $1", [id]);
+}
+```
+
+**Query Optimization & Security:**
+
+```javascript
+// Set query timeout to prevent long-running attacks
+await client.query("SET statement_timeout = 5000"); // 5 second max
+
+// Use indexes and LIMIT to prevent table scans
+const users = await pool.query(
+  "SELECT * FROM users WHERE email = $1 LIMIT 100", // Parameterized + limited
+  [email]
+);
+
+// Avoid N+1 queries with JOINs
+const result = await pool.query(
+  `
+  SELECT u.*, json_agg(o.*) as orders
+  FROM users u
+  LEFT JOIN orders o ON o.user_id = u.id
+  WHERE u.id = $1
+  GROUP BY u.id
+`,
+  [userId]
+);
+```
+
+**Database Monitoring:**
+
+| Metric              | Alert Threshold     | Indicates                       |
+| ------------------- | ------------------- | ------------------------------- |
+| Connection count    | >80% of max         | Connection exhaustion or leak   |
+| Query latency (p99) | >500ms              | Missing indexes or slow queries |
+| Replica lag         | >5 seconds          | Replication overload            |
+| Slow query count    | >10 queries >5s/min | Attack or unoptimized queries   |
 
 **Cache Invalidation**:
 
