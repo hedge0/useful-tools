@@ -126,6 +126,7 @@ For production deployments, always use explicit architecture tags (`-amd64`, `-a
 
 - Images are signed BEFORE push (Stage 6), eliminating unsigned window
 - Manifest lists must be created AFTER pushing images, creating brief unsigned window
+- **The gap exists because**: Cosign signs by digest (sha256:abc...), but the manifest digest is only calculated by the registry after push. This creates a 110-450ms window where the manifest exists unsigned in the registry, allowing an attacker with registry access to substitute it with a malicious manifest that gets signed with your legitimate key.
 - Even sub-second unsigned windows are exploitable (attacker can inject malicious manifest)
 - Explicit tags ensure Kubernetes always pulls signed, verified images
 
