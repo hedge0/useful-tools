@@ -55,6 +55,7 @@ This guide outlines a production-grade container image build pipeline that achie
 - **[Copacetic](https://github.com/project-copacetic/copacetic)**: Vulnerability patching tool (runs immediately after build)
 - **[Trivy](https://github.com/aquasecurity/trivy)**: Vulnerability scanning and SBOM generation (runs after patching)
 - **[Cosign](https://github.com/sigstore/cosign)**: Container signing and verification tool for signing images, SBOMs, and attestations
+- **[SLSA GitHub Generator](https://github.com/slsa-framework/slsa-github-generator)**: Official SLSA Level 3 provenance generator for GitHub Actions (required for non-falsifiable attestations)
 - **[Syft](https://github.com/anchore/syft)**: SBOM generation tool (alternative to Trivy)
 - **[Grype](https://github.com/anchore/grype)**: Vulnerability scanner (alternative to Trivy)
 
@@ -172,12 +173,19 @@ For production deployments, always use explicit architecture tags (`-amd64`, `-a
 
 ### Stage 3: Vulnerability Patching and Image Compression
 
+**Important**: Copacetic patching and image compression are **part of the image build process**, not post-build operations. The SLSA provenance attestation should reference the **final patched and compressed image**, as this is what gets deployed to production. Stages 2-3 together constitute the complete image build.
+
 **Copacetic Patching** (runs immediately after build, before scanning):
 
 - Analyzes image package manifest, identifies patchable vulnerabilities
 - Downloads and applies security patches without rebuild
 - Retag patched image, remove unpatched version
 - **Why first**: Reduces vulnerabilities before SBOM/scanning, ensures artifacts reflect patched state
+- **Scope**: Copacetic patches OS-level packages installed via package managers (apt, yum, apk). For application dependencies:
+  - **npm**: Upgrade via `RUN npm install -g npm@10.5.0` (pin specific version, not `@latest`)
+  - **pip**: Upgrade via `RUN pip install --no-cache-dir pip==24.0` (pin specific version, not `--upgrade pip`)
+  - **Go**: Must compile from source - `go get -u golang.org/x/net@v0.23.0 && go mod tidy && go build` (pin specific versions, not `@latest`)
+  - These require package managers still present in the image - if removed during hardening, image rebuild is required
 
 **Image Compression** (tar export/import with metadata preservation):
 
@@ -304,12 +312,48 @@ Generate SLSA provenance, SBOMs, vulnerability scan reports, sign all artifacts,
 
 **SLSA Provenance Attestation**:
 
-- Generate provenance in SLSA format (meets SLSA Level 3 requirements)
+**Use the official [SLSA GitHub Generator](https://github.com/slsa-framework/slsa-github-generator)** for SLSA Level 3 compliance:
+
+```yaml
+# .github/workflows/build.yml
+name: Build and Sign Container
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: read-all
+
+jobs:
+  build:
+    permissions:
+      id-token: write # For signing
+      contents: read
+      packages: write # For registry push
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.10.0
+    with:
+      image: registry.example.com/app
+      digest: ${{ needs.build-image.outputs.digest }} # From your build job
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.REGISTRY_TOKEN }}
+```
+
+**Why use the official generator:**
+
+- Meets SLSA Level 3 non-falsifiable provenance requirements
+- Generates cryptographically signed attestations in GitHub's secure environment
+- Automatically includes: repository, commit SHA, workflow, builder ID, timestamps, dependencies
+- Provides verifiable proof the image was built by GitHub Actions (not a local machine)
+
+**Alternative - Manual attestation** (if official generator doesn't fit your workflow):
+
+- Generate provenance in SLSA format matching the official specification
 - Include build parameters (repository, commit SHA, workflow, builder ID)
-- Include timestamps (build start/end times)
-- Include resolved dependencies (source code commit)
-- Include byproducts (SBOMs, vulnerability scans)
+- Include timestamps (build start/end times), resolved dependencies, byproducts (SBOMs, vulnerability scans)
 - Save as JSON file (e.g., `attestation-{image-name}-{arch}.json`)
+- **Note**: Manual attestations don't meet SLSA Level 3's non-falsifiable requirement without additional infrastructure
 
 **SBOM Generation** (using [Trivy](https://github.com/aquasecurity/trivy)):
 
@@ -583,6 +627,7 @@ This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the s
 - [SLSA Specification](https://slsa.dev/)
 - [SLSA Requirements](https://slsa.dev/spec/v1.0/requirements)
 - [SLSA Source Track](https://slsa.dev/spec/draft/source-requirements)
+- [SLSA GitHub Generator](https://github.com/slsa-framework/slsa-github-generator) - Official SLSA Level 3 provenance generator for GitHub Actions
 
 ### Tools and Projects
 
