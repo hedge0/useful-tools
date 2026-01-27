@@ -86,7 +86,7 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 - Expertise in: networking, security, storage, observability, GitOps
 - Operational complexity: YAML files, Helm charts, kubectl, service meshes, policy engines
 - Debugging: pod evictions, OOMKilled errors, image pull failures, DNS issues, network policies
-- Cost: $1000-5000+/month before application workloads
+- Cost: $500-2000+/month for minimal production setup, easily $2000-10000+/month with full observability/security stack
 
 **What to use instead:**
 
@@ -99,7 +99,7 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 **Why serverless is better for small teams:**
 
 - Zero operational overhead (no patching, scaling, YAML)
-- Pay only for usage ($0-200/month for most startups)
+- Pay only for usage ($0-50/month for most startups, free tier covers <1M requests)
 - Infinite scale without configuration
 - 1 engineer can manage entire infrastructure
 - Deploy in minutes, not weeks
@@ -121,7 +121,7 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 - No Kubernetes complexity (YAML, Helm, kubectl, service mesh)
 - Still get containers, load balancing, auto-scaling
 - 1/10th the operational complexity of K8s
-- $200-1000/month vs $1000-5000+/month for K8s
+- $100-500/month vs $500-2000+/month for K8s
 
 **You ACTUALLY need Kubernetes when:**
 
@@ -134,6 +134,47 @@ This guide outlines a production-grade Kubernetes architecture that prioritizes 
 - You're at "Spotify scale" (not "we watched a KubeCon talk" scale)
 
 **Reality check:** Kubernetes killed more startups than server crashes ever did. A $50/month Fargate container can handle millions of requests. Your startup will run out of runway debugging networking issues long before you need horizontal pod autoscaling.
+
+**Detailed Monthly Cost Breakdown:**
+
+**Serverless Stack (Lambda/Cloud Run):**
+
+- Compute (Lambda/Cloud Run): $0-30 (free tier covers most MVPs, ~$20-30 for 5M requests)
+- API Gateway: $3.50 per million requests (~$10-20 for typical usage)
+- Managed Database (smallest tier): $15-50
+- Secrets Manager: $0.40 per secret (~$2-5)
+- **Total: $30-100/month**
+
+**Fargate Stack:**
+
+- Fargate tasks (2-3 for HA, 0.5 vCPU, 1GB RAM each): $30-45
+- Application Load Balancer: $16-25
+- Managed Database (small): $50-150
+- Secrets Manager: $2-5
+- NAT Gateway (if private subnets): $32-45
+- **Total: $130-270/month (public subnets) or $160-315/month (private subnets)**
+
+**Kubernetes Minimal Production:**
+
+- EKS/GKE/AKS Control Plane: $73
+- Worker Nodes (3 t3.medium instances): $150-200
+- NAT Gateway (3 AZ): $100-135
+- Load Balancer: $25-40
+- Managed Database: $50-200
+- Secrets Manager: $5-10
+- **Total: $400-660/month (before observability stack)**
+
+**Kubernetes Full Production (with this guide's architecture):**
+
+- Above base infrastructure: $400-660
+- Istio service mesh overhead: +$50-100 (additional CPU/memory)
+- Prometheus + Grafana: +$30-60 (storage, retention)
+- Fluentd + centralized logging: +$50-200 (log volume dependent)
+- ArgoCD cluster (separate admin cluster): +$200-300
+- Trivy Operator scanning: +$20-40
+- Additional tooling (Kyverno, external-secrets): +$30-50
+- **Total: $780-1410/month for full stack**
+- **Realistic production with traffic: $1500-3000+/month**
 
 **If you're still reading, you've validated you actually need Kubernetes. This guide is for you.**
 
