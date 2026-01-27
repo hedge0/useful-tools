@@ -2,7 +2,7 @@
 
 **Last Updated:** January 27, 2026
 
-A cloud-agnostic guide for securing production PostgreSQL databases with defense-in-depth security, high availability, and disaster recovery. This guide includes industry best practices and lessons learned from real-world implementations.
+A cloud-agnostic guide focused on securing production SQL databases (primarily PostgreSQL) with defense-in-depth security, high availability, and disaster recovery. Includes comparisons to NoSQL alternatives and guidance on when each is appropriate. This guide includes industry best practices and lessons learned from real-world implementations.
 
 ## Table of Contents
 
@@ -14,36 +14,46 @@ A cloud-agnostic guide for securing production PostgreSQL databases with defense
    - [Managed Databases (Required)](#managed-databases-required)
    - [High Availability & Multi-AZ](#high-availability--multi-az)
    - [Read Replica Architecture](#read-replica-architecture)
-4. [Network Security](#4-network-security)
+4. [NoSQL Databases: When to Use and Security Considerations](#4-nosql-databases-when-to-use-and-security-considerations)
+   - [Default to SQL](#default-to-sql)
+   - [When You Actually Need NoSQL](#when-you-actually-need-nosql)
+   - [Critical Security Differences](#critical-security-differences)
+   - [DynamoDB Security (AWS)](#dynamodb-security-aws)
+   - [Firestore Security (GCP)](#firestore-security-gcp)
+   - [MongoDB Atlas Security](#mongodb-atlas-security)
+   - [NoSQL Security Risks](#nosql-security-risks)
+   - [Comparison: SQL vs NoSQL Security](#comparison-sql-vs-nosql-security)
+   - [Recommended Strategy](#recommended-strategy)
+5. [Network Security](#5-network-security)
    - [Network Isolation](#network-isolation)
    - [Security Groups](#security-groups)
    - [Connection from Applications](#connection-from-applications)
-5. [Authentication & Access Control](#5-authentication--access-control)
+6. [Authentication & Access Control](#6-authentication--access-control)
    - [Least-Privilege Database Users](#least-privilege-database-users)
    - [IAM Database Authentication](#iam-database-authentication)
    - [Secrets Management](#secrets-management)
-6. [Encryption](#6-encryption)
+7. [Encryption](#7-encryption)
    - [Encryption at Rest](#encryption-at-rest)
    - [Field-Level Encryption for PII/PHI](#field-level-encryption-for-piiphi)
    - [Encryption in Transit](#encryption-in-transit)
-7. [Performance & Scaling](#7-performance--scaling)
+8. [Performance & Scaling](#8-performance--scaling)
    - [Connection Pooling](#connection-pooling)
    - [Read/Write Splitting](#readwrite-splitting)
    - [Query Optimization](#query-optimization)
    - [Monitoring](#monitoring)
-8. [Backup & Disaster Recovery](#8-backup--disaster-recovery)
+9. [Backup & Disaster Recovery](#9-backup--disaster-recovery)
    - [Automated Backups](#automated-backups)
    - [Point-in-Time Recovery](#point-in-time-recovery)
    - [Disaster Recovery Procedures](#disaster-recovery-procedures)
-9. [Compliance & Auditing](#9-compliance--auditing)
-   - [Audit Logging](#audit-logging)
-   - [Data Retention](#data-retention)
-10. [Attack Scenarios Prevented](#10-attack-scenarios-prevented)
-11. [References](#11-references)
+10. [Compliance & Auditing](#10-compliance--auditing)
+    - [Audit Logging](#audit-logging)
+    - [Data Retention](#data-retention)
+11. [Attack Scenarios Prevented](#11-attack-scenarios-prevented)
+12. [References](#12-references)
 
 ## 1. Overview
 
-This guide provides production-ready patterns for securing PostgreSQL databases across cloud providers. Databases store critical business data, user information, and application state. A database breach can result in massive data loss, regulatory fines, and reputational damage.
+This guide provides production-ready patterns for securing SQL databases across cloud providers, with PostgreSQL as the primary focus. A dedicated section compares SQL to NoSQL alternatives (DynamoDB, Firestore, MongoDB Atlas) and provides guidance on when each is appropriate. Databases store critical business data, user information, and application state. A database breach can result in massive data loss, regulatory fines, and reputational damage.
 
 **Common Use Cases:**
 
@@ -167,7 +177,170 @@ Primary (writes only)
 - For read-after-write consistency, query primary
 - Monitor replica lag and alert if exceeds 5 seconds
 
-## 4. Network Security
+## 4. NoSQL Databases: When to Use and Security Considerations
+
+### Default to SQL
+
+**Use managed SQL databases (PostgreSQL via RDS, Cloud SQL, Azure Database) for most applications.**
+
+| Aspect                | SQL (PostgreSQL)                             | NoSQL (DynamoDB, Firestore, MongoDB)        |
+| --------------------- | -------------------------------------------- | ------------------------------------------- |
+| **Data Integrity**    | ACID transactions, foreign keys, constraints | Eventually consistent, limited transactions |
+| **Query Flexibility** | Complex JOINs, ad-hoc queries                | Must design for access patterns upfront     |
+| **Security Model**    | Row-level permissions, query validation      | Application-enforced, no query validation   |
+| **Audit Logging**     | Granular (pgaudit)                           | Vendor-specific, often expensive            |
+| **Team Familiarity**  | Universal SQL knowledge                      | Specialized per database                    |
+
+### When You Actually Need NoSQL
+
+Choose NoSQL only when you have **proven requirements**:
+
+- **Extreme write throughput** (>50,000 writes/second) - DynamoDB
+- **Real-time sync with offline support** - Firestore
+- **Global multi-region with single-digit latency** - DynamoDB Global Tables, Firestore
+- **Key-value caching with TTL** - DynamoDB, Redis
+- **Serverless auto-scaling** - DynamoDB On-Demand, Firestore
+
+**When NOT to use NoSQL:**
+
+- ❌ "We might need to scale" (SQL scales to millions of users)
+- ❌ "NoSQL is faster" (SQL with proper indexes is equally fast)
+- ❌ "Flexible schema" (PostgreSQL JSONB provides this)
+- ❌ Complex reporting/analytics (SQL with JOINs is far superior)
+
+### Critical Security Differences
+
+**SQL Security Model:**
+
+- Database enforces permissions (GRANT/REVOKE on tables)
+- Query validation prevents unauthorized data access
+- Parameterized queries prevent injection
+
+**NoSQL Security Model:**
+
+- **Application enforces all authorization** (database trusts application)
+- **No query validation** - application can query entire collections if IAM/rules allow
+- Injection prevention is application's responsibility
+
+### DynamoDB Security (AWS)
+
+**Access Control via IAM:**
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+  "Resource": "arn:aws:dynamodb:*:*:table/users",
+  "Condition": {
+    "ForAllValues:StringEquals": {
+      "dynamodb:LeadingKeys": ["${aws:userid}"]
+    }
+  }
+}
+```
+
+**Critical:** Without IAM conditions, application can read entire table. Always validate user owns the resource in application code.
+
+**Encryption:**
+
+- At-rest: KMS encryption (enable on table creation)
+- In-transit: TLS by default
+- Point-in-Time Recovery: Enable for production tables
+
+**Audit Logging:**
+
+- CloudTrail data events (expensive for high-traffic tables)
+- Enable only for sensitive tables
+
+### Firestore Security (GCP)
+
+**Security Rules (Required for Client Access):**
+
+```javascript
+match /users/{userId} {
+  allow read, write: if request.auth != null && request.auth.uid == userId;
+}
+```
+
+**Critical:** Default is deny-all. Rules are evaluated server-side but must be carefully tested - complex rules are error-prone.
+
+**Encryption:**
+
+- At-rest: Google-managed keys (default) or CMEK
+- In-transit: TLS by default
+
+**Audit Logging:**
+
+- Cloud Audit Logs for admin and data access
+- Log security rule evaluations and failures
+
+### MongoDB Atlas Security
+
+**Access Control:**
+
+- Database users with SCRAM-SHA-256 authentication
+- Role-based permissions (use custom roles, not default `readWrite`)
+- **IP allowlist required** - never use `0.0.0.0/0`
+
+**NoSQL Injection Prevention:**
+
+```javascript
+// Validate input types
+if (typeof email !== "string") throw new Error("Invalid input");
+const user = await db.collection("users").findOne({ email: email });
+```
+
+**Encryption:**
+
+- At-rest: Enabled by default (cloud provider keys or CMEK)
+- In-transit: TLS required
+- Field-level: Client-side field-level encryption (CSFLE) for PII/PHI
+
+**Audit Logging:**
+
+- Database auditing (M10+ clusters)
+- Export to S3/Cloud Logging/Azure Monitor
+
+### NoSQL Security Risks
+
+**1. No Query Validation**
+
+- Application can query any data if IAM/rules permit
+- Must validate authorization in application code
+- Unlike SQL, database doesn't enforce row-level security
+
+**2. Injection via Unsanitized Input**
+
+- NoSQL injection possible with object/array inputs
+- Always validate input types and use explicit operators
+
+**3. Overly Permissive IAM/Rules**
+
+- DynamoDB: IAM policies without `LeadingKeys` condition
+- Firestore: Security rules missing `request.auth.uid` checks
+- MongoDB: Default `readWrite` role grants full database access
+
+### Comparison: SQL vs NoSQL Security
+
+| Security Feature           | SQL                   | DynamoDB            | Firestore           | MongoDB        |
+| -------------------------- | --------------------- | ------------------- | ------------------- | -------------- |
+| **Authorization**          | Database-enforced     | IAM policies        | Security Rules      | Database roles |
+| **Query Validation**       | Yes                   | No                  | Rules only          | No             |
+| **Injection Protection**   | Parameterized queries | App validation      | Rules validation    | App validation |
+| **Field-Level Encryption** | pgcrypto or app-side  | App-side            | App-side            | CSFLE          |
+| **Audit Granularity**      | High (pgaudit)        | Medium (CloudTrail) | Medium (Cloud Logs) | Medium (Atlas) |
+
+### Recommended Strategy
+
+**For 95% of applications:**
+
+1. **Start with PostgreSQL** (RDS, Cloud SQL, Azure Database)
+2. **Add Redis** for caching and session storage
+3. **Only add NoSQL** when you have proven, measured requirements
+
+**PostgreSQL with JSONB** provides flexible schema for most "NoSQL use cases" while maintaining ACID guarantees and SQL query power.
+
+## 5. Network Security
 
 ### Network Isolation
 
@@ -355,7 +528,7 @@ def get_db_credentials():
     return json.loads(response['SecretString'])
 ```
 
-## 5. Authentication & Access Control
+## 6. Authentication & Access Control
 
 ### Least-Privilege Database Users
 
@@ -468,7 +641,7 @@ Modern best practices (NIST SP 800-63B, OWASP 2024): Routine rotation no longer 
 - Monitor for unauthorized access attempts
 - Use Workload Identity/IRSA in Kubernetes (automatic credential refresh)
 
-## 6. Encryption
+## 7. Encryption
 
 ### Encryption at Rest
 
@@ -670,7 +843,7 @@ conn = psycopg2.connect(
 
 **Recommendation:** Use `verify-full` with server CA certificate for production. Download CA certificate from your cloud provider and specify in connection.
 
-## 7. Performance & Scaling
+## 8. Performance & Scaling
 
 ### Connection Pooling
 
@@ -965,7 +1138,7 @@ Monitor database performance to detect attacks and degradation early.
 - **GCP**: Cloud Monitoring, Query Insights
 - **Azure**: Azure Monitor, Query Performance Insight
 
-## 8. Backup & Disaster Recovery
+## 9. Backup & Disaster Recovery
 
 ### Automated Backups
 
@@ -1055,7 +1228,7 @@ Test disaster recovery quarterly:
 3. Run application smoke tests
 4. Document actual RTO achieved
 
-## 9. Compliance & Auditing
+## 10. Compliance & Auditing
 
 ### Audit Logging
 
@@ -1104,7 +1277,7 @@ Forward to centralized SIEM (Splunk, ELK Stack, cloud logging).
 - **PCI-DSS**: Cardholder data encryption, access restrictions, annual key rotation
 - **SOC2**: Access controls, encryption, continuous monitoring, 1-year log retention
 
-## 10. Attack Scenarios Prevented
+## 11. Attack Scenarios Prevented
 
 This guide's security controls prevent real-world database attacks.
 
@@ -1143,7 +1316,7 @@ This guide's security controls prevent real-world database attacks.
 - Attack: Expensive queries cause database overload
 - Mitigated by: Query timeouts (5-second limit), connection pooling, read replicas (offload from primary), indexes, monitoring
 
-## 11. References
+## 12. References
 
 ### Database Systems
 
