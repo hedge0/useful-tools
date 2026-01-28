@@ -8,14 +8,41 @@ A practical guide focused on securing production React applications. React's bui
 
 1. [Overview](#1-overview)
 2. [Prerequisites](#2-prerequisites)
+   - [Required Tools](#required-tools)
+   - [Recommended Frameworks](#recommended-frameworks)
+   - [External Services](#external-services)
 3. [React's Built-In Security](#3-reacts-built-in-security)
+   - [Automatic XSS Prevention](#automatic-xss-prevention)
+   - [When React DOESN'T Protect You](#when-react-doesnt-protect-you)
 4. [Authentication & Session Management](#4-authentication--session-management)
+   - [JWT Storage (Recommended Approach)](#jwt-storage-recommended-approach)
+   - [Token Refresh Pattern](#token-refresh-pattern)
 5. [Content Security Policy (CSP)](#5-content-security-policy-csp)
+   - [Basic CSP Configuration](#basic-csp-configuration)
+   - [CSP with Next.js](#csp-with-nextjs)
+   - [CSP with Vite](#csp-with-vite)
 6. [CSRF Protection](#6-csrf-protection)
+   - [What is CSRF?](#what-is-csrf)
+   - [Defense: CSRF Tokens](#defense-csrf-tokens)
+   - [Alternative: SameSite Cookies](#alternative-samesite-cookies)
 7. [Dependency Security](#7-dependency-security)
+   - [npm audit](#npm-audit)
+   - [Dependabot](#dependabot)
+   - [Avoiding Malicious Packages](#avoiding-malicious-packages)
+   - [SAST with Semgrep or Opengrep](#sast-with-semgrep-or-opengrep)
+   - [Secret Scanning with TruffleHog](#secret-scanning-with-trufflehog)
 8. [Environment Variables & Secrets](#8-environment-variables--secrets)
+   - [What NOT to Put in Frontend](#what-not-to-put-in-frontend)
+   - [Safe Environment Variables](#safe-environment-variables)
+   - [Backend-for-Frontend Pattern](#backend-for-frontend-pattern)
 9. [Browser Security Headers](#9-browser-security-headers)
+   - [Essential Security Headers](#essential-security-headers)
+   - [Next.js Configuration](#nextjs-configuration)
+   - [Nginx Configuration](#nginx-configuration)
 10. [React-Specific Security Pitfalls](#10-react-specific-security-pitfalls)
+    - [dangerouslySetInnerHTML](#dangerouslysetinnerhtml)
+    - [User-Controlled URLs](#user-controlled-urls)
+    - [Third-Party Scripts](#third-party-scripts)
 11. [Attack Scenarios Prevented](#11-attack-scenarios-prevented)
 12. [References](#12-references)
 
@@ -39,6 +66,7 @@ React applications run in the browser and communicate with backend APIs. This gu
 
 **Core Principles:**
 
+- **Use TypeScript**: Type safety catches security bugs at compile-time
 - **Trust No Client**: All authorization happens server-side
 - **Defense in Depth**: Multiple security layers (CSP + secure cookies + HTTPS)
 - **Minimize Attack Surface**: Remove debug code, sanitize user content
@@ -51,9 +79,25 @@ React applications run in the browser and communicate with backend APIs. This gu
 
 - [Node.js 18+](https://nodejs.org/) and npm/pnpm
 - [React 18+](https://react.dev/)
+- **[TypeScript](https://www.typescriptlang.org/)** - Strongly recommended over JavaScript (type safety catches security bugs at compile-time)
 - [TruffleHog](https://github.com/trufflesecurity/trufflehog) - Secret scanning (detects API keys, tokens in code)
 - [Semgrep](https://semgrep.dev/) or [Opengrep](https://github.com/opengrep/opengrep) - SAST for JavaScript/TypeScript vulnerabilities
 - [npm audit](https://docs.npmjs.com/cli/v9/commands/npm-audit) - Built-in dependency scanner
+
+**TypeScript vs JavaScript:**
+
+Use **TypeScript** for all production React applications:
+
+- Catches type-related security bugs at compile-time (null checks, undefined access)
+- Enforces type safety in API responses (prevents unexpected data shapes)
+- Better IDE support for catching vulnerabilities (autocomplete prevents typos in security-critical code)
+- Industry standard for serious production applications
+
+**Only use JavaScript if:**
+
+- Small prototype/demo (<1,000 lines)
+- Learning React fundamentals
+- Legacy codebase without migration resources
 
 ### Recommended Frameworks
 
@@ -170,30 +214,67 @@ function SafeLink({ userUrl }) {
 
 **Recommended: HttpOnly cookies**
 
+```typescript
+// TypeScript - Type-safe authentication (RECOMMENDED)
+interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+}
+
+async function login(credentials: LoginCredentials): Promise<User> {
+  const response = await fetch("https://api.example.com/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include", // Send/receive cookies
+    body: JSON.stringify(credentials),
+  });
+
+  // Server sets: Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict
+
+  if (!response.ok) {
+    throw new Error("Login failed");
+  }
+
+  const data = await response.json();
+  return data.user;
+}
+
+// Subsequent API calls automatically include cookie
+async function fetchUserData(): Promise<User> {
+  const response = await fetch("https://api.example.com/user", {
+    credentials: "include", // Sends HttpOnly cookie automatically
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch user data");
+  }
+
+  return response.json();
+}
+```
+
+**JavaScript version (if not using TypeScript):**
+
 ```jsx
 // Login API call - backend sets HttpOnly cookie
 async function login(email, password) {
   const response = await fetch("https://api.example.com/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include", // Send/receive cookies
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
-
-  // Server sets: Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict
 
   if (response.ok) {
     return await response.json();
   }
   throw new Error("Login failed");
-}
-
-// Subsequent API calls automatically include cookie
-async function fetchUserData() {
-  const response = await fetch("https://api.example.com/user", {
-    credentials: "include", // Sends HttpOnly cookie automatically
-  });
-  return response.json();
 }
 ```
 
@@ -321,14 +402,36 @@ function ProtectedRoute({ children }) {
 
 ## 5. Content Security Policy (CSP)
 
-### Why CSP Matters
-
 CSP prevents XSS even if you accidentally bypass React's protections.
 
 **Without CSP:** Any injected script executes
 **With CSP:** Only allowed scripts execute
 
-### Configuring CSP (Vite Example)
+### Basic CSP Configuration
+
+**Essential CSP directives:**
+
+```
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https:;
+  connect-src 'self' https://api.example.com;
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'self';
+```
+
+**What each directive does:**
+
+- `default-src 'self'`: Only load resources from same origin
+- `script-src 'self'`: Only execute scripts from same origin
+- `style-src 'self' 'unsafe-inline'`: Allow same-origin CSS + inline styles (React needs this)
+- `connect-src`: Whitelist API endpoints for fetch/XHR
+- `frame-ancestors 'none'`: Prevent clickjacking
+
+### CSP with Vite
 
 **vite.config.js:**
 
@@ -356,6 +459,46 @@ export default {
 
 ```nginx
 add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https:; connect-src 'self' https://api.example.com; frame-ancestors 'none';" always;
+```
+
+### CSP with Next.js
+
+**next.config.js:**
+
+```javascript
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js dev needs these
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https:",
+              "connect-src 'self' https://api.example.com",
+              "frame-ancestors 'none'",
+            ].join("; "),
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+**Production CSP (stricter):**
+
+```javascript
+// Remove 'unsafe-eval' and 'unsafe-inline' for production
+const isDev = process.env.NODE_ENV === "development";
+
+const csp = isDev
+  ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
+  : "script-src 'self'";
 ```
 
 ### CSP with Third-Party Scripts
@@ -747,32 +890,99 @@ REACT_APP_API_URL=https://api.example.com
 const apiUrl = process.env.REACT_APP_API_URL;
 ```
 
-### Runtime Configuration
+### Backend-for-Frontend Pattern
 
-**For sensitive config, fetch from backend:**
+**NEVER call third-party APIs directly from frontend with your secret keys.**
+
+**Bad: Exposes secret API key**
 
 ```jsx
-function App() {
-  const [config, setConfig] = useState(null);
+// WRONG - Secret key exposed to all users
+const stripe = Stripe("sk_live_SECRET_KEY_HERE");
+await stripe.charges.create({ amount: 1000 });
+```
 
-  useEffect(() => {
-    // Backend returns config based on user's auth level
-    fetch("/api/config", { credentials: "include" })
-      .then((r) => r.json())
-      .then(setConfig);
-  }, []);
+**Good: Proxy through your backend**
 
-  if (!config) return <div>Loading...</div>;
-
-  return <Dashboard config={config} />;
+```jsx
+// Frontend - calls your backend
+async function createCharge(amount) {
+  return fetch("/api/payments/charge", {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({ amount }),
+  });
 }
+
+// Backend API route - holds the secret
+app.post("/api/payments/charge", authenticateUser, async (req, res) => {
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+  const charge = await stripe.charges.create({
+    amount: req.body.amount,
+    currency: "usd",
+    customer: req.user.stripeCustomerId,
+  });
+
+  res.json(charge);
+});
 ```
 
 ## 9. Browser Security Headers
 
-### Configure in Production
+### Essential Security Headers
 
-**Nginx:**
+Configure these headers in production to provide defense-in-depth protection:
+
+**Core headers every React app needs:**
+
+- `X-Frame-Options`: Prevents clickjacking
+- `X-Content-Type-Options`: Prevents MIME sniffing
+- `Strict-Transport-Security`: Enforces HTTPS
+- `Referrer-Policy`: Controls referrer information
+- `Permissions-Policy`: Disables unnecessary browser features
+
+### Next.js Configuration
+
+**next.config.js:**
+
+```javascript
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(), microphone=(), camera=()",
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+### Nginx Configuration
+
+**nginx.conf:**
 
 ```nginx
 # Prevent clickjacking
@@ -796,7 +1006,7 @@ add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
 **CloudFlare (Transform Rules):**
 
-CloudFlare can add headers via Transform Rules in dashboard.
+CloudFlare can add headers via Transform Rules in dashboard (Settings → Transform Rules → Modify Response Header).
 
 ### Headers Explained
 
@@ -954,20 +1164,24 @@ sourcemap: "hidden"; // Generates maps but doesn't link in JS
 ### React Security
 
 - [React Security Best Practices](https://react.dev/learn/security)
-- [DOMPurify](https://github.com/cure53/DOMPurify)
 - [React Security Docs](https://legacy.reactjs.org/docs/dom-elements.html#dangerouslysetinnerhtml)
+- [TypeScript](https://www.typescriptlang.org/) - Type safety for production apps
 
-### Web Security
+### Security Tools
+
+- [TruffleHog](https://github.com/trufflesecurity/trufflehog) - Secret scanning
+- [Semgrep](https://semgrep.dev/) - SAST (AI-powered, paid)
+- [Opengrep](https://github.com/opengrep/opengrep) - SAST (open-source, free)
+- [Dependabot](https://github.com/dependabot) - Automated dependency updates
+- [npm audit](https://docs.npmjs.com/cli/v9/commands/npm-audit) - Dependency scanner
+- [DOMPurify](https://github.com/cure53/DOMPurify) - HTML sanitization
+
+### Web Security Standards
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
+- [Content Security Policy (CSP)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
 - [SameSite Cookies](https://web.dev/samesite-cookies-explained/)
-
-### Tools
-
-- [npm audit](https://docs.npmjs.com/cli/v9/commands/npm-audit)
-- [ESLint Security Plugin](https://github.com/nodesecurity/eslint-plugin-security)
-- [Dependabot](https://github.com/dependabot)
+- [OWASP Frontend Security](https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html)
 
 ### Authentication
 
@@ -976,7 +1190,7 @@ sourcemap: "hidden"; // Generates maps but doesn't link in JS
 - [Firebase Auth](https://firebase.google.com/docs/auth)
 - [AWS Cognito](https://aws.amazon.com/cognito/)
 
-### Headers
+### Security Testing
 
 - [SecurityHeaders.com](https://securityheaders.com/) - Test your headers
 - [Mozilla Observatory](https://observatory.mozilla.org/) - Security scan
