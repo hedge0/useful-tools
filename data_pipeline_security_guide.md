@@ -801,6 +801,43 @@ tokenize_udf = udf(tokenize, StringType())
 df = df.withColumn("ssn_token", tokenize_udf(df.ssn))
 ```
 
+**Multi-Tenant Data Isolation:**
+
+For SaaS platforms processing data from multiple customers in shared pipelines, tenant boundaries must be enforced at every stage to prevent cross-tenant data leakage.
+
+**Critical tenant_id requirements:**
+
+- **Kafka topics**: Include tenant_id in message key for partition isolation
+- **Spark processing**: Always include tenant_id in JOIN conditions and GROUP BY clauses
+- **Storage**: Write to tenant-specific S3 prefixes or separate tables
+
+```python
+# VULNERABLE - joins without tenant_id boundary
+orders = spark.read.parquet("s3://data/orders/")
+customers = spark.read.parquet("s3://data/customers/")
+result = orders.join(customers, "customer_id")  # ⚠️ Crosses tenant boundaries!
+
+# SAFE - explicit tenant isolation
+result = orders.join(
+    customers,
+    (orders.customer_id == customers.customer_id) &
+    (orders.tenant_id == customers.tenant_id)  # ✓ Enforces tenant boundary
+)
+
+# SAFE - filter by tenant before processing
+tenant_orders = orders.filter(col("tenant_id") == "customer_123")
+tenant_customers = customers.filter(col("tenant_id") == "customer_123")
+result = tenant_orders.join(tenant_customers, "customer_id")
+```
+
+The vulnerability occurs when joins or aggregations use shared identifiers (user_id, order_id) without including tenant_id in the condition. A misconfigured join can cause customer A's data to appear in customer B's analytics. Always partition by tenant_id and include it in all multi-dataset operations.
+
+**Tenant isolation validation:**
+
+- Schema Registry: Enforce tenant_id as required field in all event schemas
+- Spark job testing: Run with interleaved multi-tenant test data, verify results segregate correctly
+- Monitoring: Alert on unexpected cross-tenant data patterns (tenant A's job writing to tenant B's S3 prefix)
+
 ### Audit Logging
 
 **Kafka Audit Logging:**

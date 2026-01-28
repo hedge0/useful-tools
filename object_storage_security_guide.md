@@ -216,6 +216,38 @@ url = blob.generate_signed_url(
 - URLs are bearer tokens - anyone with the URL has access
 - Consider IP restrictions for sensitive data
 
+**DNS and Subdomain Takeover Prevention:**
+
+When using custom domains (CNAMEs) pointing to object storage, coordinate bucket lifecycle with DNS carefully to prevent subdomain takeover attacks.
+
+**The vulnerability:** If you delete a bucket while DNS still points to it, an attacker can register the same bucket name (now available) and serve malicious content on your domain.
+
+```bash
+# Vulnerable sequence:
+# 1. You have: assets.example.com → CNAME → company-assets.s3.amazonaws.com
+# 2. You delete bucket: company-assets
+# 3. DNS still has: assets.example.com → CNAME → company-assets.s3.amazonaws.com
+# 4. Attacker registers: company-assets bucket
+# 5. Attacker now serves content on your domain with your SSL cert
+```
+
+**Prevention strategies:**
+
+- Before deleting buckets, scan DNS zones for references (automated check in IaC teardown)
+- Use CloudFront with Origin Access Control (OAC) instead of direct S3 CNAMEs - point DNS at CloudFront distributions you control
+- Maintain bucket name inventory with associated DNS records
+- Implement "bucket parking" - keep critical bucket names registered but empty/minimal config ($0.001/month storage cost to prevent $millions in reputational damage)
+
+**CloudFront OAC pattern (recommended):**
+
+```bash
+# Point DNS at CloudFront (you control), not S3 bucket (can be reclaimed)
+assets.example.com → CNAME → d123456abcdef.cloudfront.net
+
+# CloudFront origin points to S3
+# If S3 bucket deleted, CloudFront returns controlled error, not attacker content
+```
+
 ### VPC Endpoints for Private Access
 
 Use VPC endpoints to access object storage privately without traversing the internet.

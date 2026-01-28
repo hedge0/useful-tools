@@ -1,6 +1,6 @@
 # Database Security Guide
 
-**Last Updated:** January 27, 2026
+**Last Updated:** January 28, 2026
 
 A cloud-agnostic guide focused on securing production SQL databases (primarily PostgreSQL) with defense-in-depth security, high availability, and disaster recovery. Includes comparisons to NoSQL alternatives and guidance on when each is appropriate. This guide includes industry best practices and lessons learned from real-world implementations.
 
@@ -260,13 +260,32 @@ Access control via database users and roles:
 - Create custom roles instead of default `readWrite` (too permissive)
 - **IP allowlist required** - never use `0.0.0.0/0`
 
-NoSQL injection prevention:
+NoSQL injection prevention - MongoDB queries use JSON objects, making them vulnerable to operator injection:
 
 ```javascript
-// Validate input types before queries
-if (typeof email !== "string") throw new Error("Invalid input");
-const user = await db.collection("users").findOne({ email: email });
+// VULNERABLE - attacker sends password: {"$gt": ""}
+const user = await db.collection("users").findOne({
+  username: req.body.username,
+  password: req.body.password, // ⚠️ Attacker injects operator, bypasses auth
+});
+
+// SAFE - validate input types
+if (
+  typeof req.body.username !== "string" ||
+  typeof req.body.password !== "string"
+) {
+  return res.status(400).json({ error: "Invalid input" });
+}
+
+const user = await db.collection("users").findOne({
+  username: req.body.username,
+  password: req.body.password, // ✓ Now safe from operator injection
+});
 ```
+
+The vulnerability occurs because MongoDB interprets objects in queries as operators (`$gt`, `$ne`, `$regex`, `$where`). An attacker sending `{"$gt": ""}` as password matches any password greater than empty string, bypassing authentication. Always validate that user input is the expected primitive type (string, number, boolean) before using in queries.
+
+Similar injection risks exist in DynamoDB and Firestore when building query conditions from user input - always validate types and sanitize before constructing queries.
 
 Configuration:
 

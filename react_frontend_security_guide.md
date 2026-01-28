@@ -562,6 +562,32 @@ npm ci  # In CI/CD (uses lock file)
 
 The `package-lock.json` file locks your dependencies to specific versions and checksums. Use `npm ci` in CI/CD environments instead of `npm install` to ensure the exact versions from the lock file are installed, preventing attackers from injecting malicious updates between development and production.
 
+**Supply chain attack patterns to watch for:**
+
+Recent attacks demonstrate how npm supply chain compromises occur:
+
+- **Ownership transfer attacks**: Popular unmaintained packages transferred to malicious actors who inject backdoors in minor updates (e.g., event-stream 2018 - 2M downloads/week, injected cryptocurrency wallet stealer)
+- **Account compromise**: Maintainer accounts stolen via phishing, malicious versions published (e.g., ua-parser-js 2021 - 9M downloads/week, deployed cryptominers)
+- **Dependency confusion**: Attackers publish malicious packages with same name as internal private packages, npm installs public version (e.g., targeting tech companies' internal tools)
+
+**Post-install script risks:**
+
+```bash
+# Check if package runs code during install
+npm view package-name scripts
+
+# Disable auto-execution (run manually after audit)
+npm install --ignore-scripts
+```
+
+Many packages run arbitrary code during `npm install` via post-install scripts. A malicious package can steal environment variables (often containing CI/CD secrets), modify other packages in node_modules, or establish persistence. Review scripts before allowing execution, especially for new dependencies.
+
+**Advanced protection:**
+
+- Use tools like Socket Security that analyze package behavior (network requests, file system access, shell commands)
+- Enable GitHub Dependabot security alerts for automatic vulnerability notifications
+- For security-critical projects, vendor key dependencies (copy source into your repo) to isolate from supply chain
+
 ### SAST with Semgrep or Opengrep
 
 Static Application Security Testing (SAST) analyzes your source code for security vulnerabilities without executing it. Unlike dependency scanning which only checks for known vulnerable packages, SAST examines your actual code patterns to find security flaws like XSS, hardcoded secrets, and injection vulnerabilities.
