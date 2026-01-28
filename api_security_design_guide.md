@@ -128,7 +128,7 @@ This guide outlines a production-grade API design approach that balances securit
 
 - [Dependabot](https://github.com/dependabot/dependabot-core) - Automated dependency updates
 - [TruffleHog](https://github.com/trufflesecurity/trufflehog) - Secret scanning
-- [Opengrep](https://github.com/opengrep/opengrep) - Static application security testing
+- [Semgrep](https://semgrep.dev/) or [Opengrep](https://github.com/opengrep/opengrep) - Static application security testing (SAST)
 
 ### External Services
 
@@ -366,12 +366,19 @@ Use [pre-commit](https://pre-commit.com/) framework to run TruffleHog before com
 
 ### Static Application Security Testing (SAST)
 
-[Opengrep](https://github.com/opengrep/opengrep) (formerly Semgrep):
+**Semgrep vs Opengrep:**
 
-- Scans source code for security vulnerabilities
-- Detects: SQL injection, XSS, insecure crypto, authentication issues, hardcoded secrets
-- Supports 30+ languages (JavaScript, Python, Go, Java, C#, etc.)
-- Run in CI/CD on every PR: `semgrep scan --config auto`
+- **[Semgrep](https://semgrep.dev/)** (Paid): AI-powered analysis reduces false positives significantly, better accuracy, managed rules
+- **[Opengrep](https://github.com/opengrep/opengrep)** (Free, open-source fork): Community-driven rules, more false positives but free
+
+**Recommendation:** Use Semgrep if budget allows (fewer false positives = less noise). Use Opengrep for cost-conscious teams willing to triage false positives.
+
+**Both tools:**
+
+- Scan source code for security vulnerabilities
+- Detect: SQL injection, XSS, insecure crypto, authentication issues, hardcoded secrets
+- Support 30+ languages (JavaScript, Python, Go, Java, C#, etc.)
+- Run in CI/CD on every PR: `semgrep scan --config auto` or `opengrep scan --config auto`
 
 **Common SAST Rules:**
 
@@ -1685,6 +1692,7 @@ This guide's security controls prevent real-world attacks commonly seen in produ
 
 - [Dependabot](https://github.com/dependabot/dependabot-core)
 - [TruffleHog](https://github.com/trufflesecurity/trufflehog)
+- [Semgrep](https://semgrep.dev/)
 - [Opengrep](https://github.com/opengrep/opengrep)
 - [Coraza](https://github.com/corazawaf/coraza)
 - [ModSecurity](https://github.com/owasp-modsecurity/ModSecurity)

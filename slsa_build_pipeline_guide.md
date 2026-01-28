@@ -108,7 +108,7 @@ Prepare and secure application code and dependencies before building the contain
 **Application Security**:
 
 - **[Dependabot](https://github.com/dependabot/dependabot-core)**: Automated dependency updates, creates PRs for outdated packages, catches vulnerabilities before build
-- **[Opengrep](https://github.com/opengrep/opengrep)**: SAST for source code vulnerabilities (SQL injection, XSS, insecure crypto, hardcoded secrets, etc.)
+- **[Semgrep](https://semgrep.dev/) or [Opengrep](https://github.com/opengrep/opengrep)**: SAST for source code vulnerabilities (SQL injection, XSS, insecure crypto, hardcoded secrets). Semgrep (paid) uses AI to reduce false positives; Opengrep (free) has more false positives but is open-source.
 
 **Pre-Build Checklist**:
 
@@ -643,6 +643,7 @@ This guide's SLSA Level 3 pipeline prevents supply chain attacks targeting the s
 - [Syft](https://github.com/anchore/syft)
 - [Grype](https://github.com/anchore/grype)
 - [Dependabot](https://github.com/dependabot/dependabot-core)
+- [Semgrep](https://semgrep.dev/)
 - [Opengrep](https://github.com/opengrep/opengrep)
 - [TruffleHog](https://github.com/trufflesecurity/trufflehog)
 - [Kyverno](https://github.com/kyverno/kyverno)
