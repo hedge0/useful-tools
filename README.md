@@ -14,8 +14,6 @@ Battle-tested security guides for production systems. Cloud-agnostic patterns fo
 
 ## Key Recommendations
 
-**Start simple.** Most teams should use serverless (Lambda/Cloud Run) + managed databases ($30-100/month) instead of Kubernetes ($500-2000+/month).
-
 **Always use managed services for:**
 
 - Databases (RDS, Cloud SQL, Azure Database)
