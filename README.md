@@ -12,20 +12,6 @@ Battle-tested security guides for production systems. Cloud-agnostic patterns fo
 - **[React Frontend Security Guide](react_frontend_security_guide.md)** - Client-side security, authentication patterns
 - **[SLSA Build Pipeline Guide](slsa_build_pipeline_guide.md)** - Supply chain security, SLSA Level 3 compliance
 
-## Key Recommendations
-
-**Always use managed services for:**
-
-- Databases (RDS, Cloud SQL, Azure Database)
-- Kubernetes control plane (EKS, GKE, AKS)
-- Secrets (Secrets Manager, Secret Manager, Key Vault)
-- Logging (CloudWatch, Cloud Logging, Monitor)
-
-**Only use complex solutions when you have proven requirements:**
-
-- Kubernetes: 50+ microservices, dedicated platform team (3-5+ engineers)
-- Kafka + Spark: >100k events/second, event replay required
-
 ## Cloud Provider Support
 
 | Service        | AWS             | GCP            | Azure                   |
